@@ -1,3 +1,12 @@
+---
+type: CLI
+title: CLI Usage
+description: Guide to OpenWiki CLI commands, modes, environment configurations, and execution options.
+timestamp: 2026-07-14T11:42:14+05:30
+tags: [cli, commands, config]
+resource: src/commands.ts
+---
+
 # CLI usage
 
 OpenWiki ships as a single `openwiki` binary and is intended to work both as an interactive terminal app and as a one-shot documentation runner.

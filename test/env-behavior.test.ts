@@ -141,6 +141,10 @@ describe("saveOpenWikiEnv", () => {
   test("writes the env file with 0600 permissions", async () => {
     await saveOpenWikiEnv({ [OPENAI_API_KEY_ENV_KEY]: "sk-test" });
 
+    if (process.platform === "win32") {
+      return;
+    }
+
     const mode = (await stat(openWikiEnvPath)).mode & 0o777;
 
     // Owner read/write only; no group/other bits.

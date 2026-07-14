@@ -1,3 +1,12 @@
+---
+type: Operation
+title: Credentials and Updates
+description: Guide to local credentials storage, personal wiki instructions, update metadata, and CI/CD scheduling workflows.
+timestamp: 2026-07-14T11:42:14+05:30
+tags: [operations, credentials, metadata, cicd]
+resource: src/env.ts
+---
+
 # Credentials and updates
 
 OpenWiki has four operational concerns that matter for both users and maintainers:
@@ -11,12 +20,13 @@ It also ships with GitHub Actions and GitLab CI workflow examples for scheduled 
 
 ## Installation notes
 
-On Windows, prefer installing OpenWiki with Node.js package managers such as
-`npm` or `pnpm`. The Bun global-install path can fall back to compiling
-`better-sqlite3`, which requires Visual Studio Build Tools with the Desktop
-development with C++ workload. Bun does not run lifecycle scripts from installed
-packages by default, so OpenWiki cannot show an install-time warning before that
-native dependency build begins.
+Bun is the recommended runtime environment for running OpenWiki. You can install it globally via:
+
+```sh
+bun install -g openwiki
+```
+
+On Windows, installing OpenWiki with Bun may compile `better-sqlite3` native bindings. If prompted, make sure Visual Studio Build Tools with Desktop development with C++ workload is installed.
 
 ## Local credential storage
 

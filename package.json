@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "bun": ">=1.0.0"
   },
   "bin": {
     "openwiki": "./dist/cli.js"
@@ -25,24 +25,25 @@
     "cli"
   ],
   "scripts": {
-    "openwiki": "node dist/cli.js",
+    "openwiki": "bun run dist/cli.js",
     "build": "tsc -p tsconfig.json",
-    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "clean": "bun -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
     "coverage": "vitest run --coverage",
-    "dev": "tsx src/cli.tsx",
+    "dev": "bun run src/cli.tsx",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . --fix",
     "lint:check": "eslint .",
-    "prebuild": "pnpm run clean",
-    "prepack": "pnpm run build",
-    "start": "node dist/cli.js",
+    "prebuild": "bun run clean",
+    "prepack": "bun run build",
+    "start": "bun run dist/cli.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@langchain/anthropic": "^1.5.1",
     "@langchain/core": "^1.2.1",
+    "@langchain/langgraph-checkpoint": "^1.1.2",
     "@langchain/langgraph-checkpoint-sqlite": "^1.0.3",
     "@langchain/openai": "^1.5.5",
     "@langchain/openrouter": "^0.4.3",
@@ -64,16 +65,8 @@
     "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^10.5.0",
     "prettier": "^3.8.4",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.62.0",
     "vitest": "^4.1.10"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "esbuild"
-    ]
-  },
-  "packageManager": "pnpm@10.33.2+sha512.a90faf6feeab71ad6c6e57f94e0fe1a12f5dcc22cd754db40ae9593eb6a3e0b6b12e3540218bb37ae083404b1f2ce6db2a4121e979829b4aff94b99f49da1cf8"
+  }
 }

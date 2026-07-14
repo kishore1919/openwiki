@@ -24,13 +24,13 @@ into three PRs.
 Run these locally so you don't get surprised by CI:
 
 ```sh
-pnpm run format
-pnpm run lint
-pnpm test
+bun run format
+bun run lint
+bun test
 ```
 
 `format` and `lint` match the checks that run on every PR, and `test` runs the
-Vitest suite.
+test suite.
 
 ## PR expectations
 

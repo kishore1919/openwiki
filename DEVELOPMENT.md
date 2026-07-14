@@ -4,24 +4,15 @@
 
 Prerequisites:
 
-- Node.js 20 or newer
-- pnpm
+- Bun 1.0 or newer
 
-Set up pnpm's global bin directory once if `pnpm link --global` has not worked
-on this machine yet:
-
-```sh
-pnpm setup
-```
-
-Restart your shell, or source the profile file that `pnpm setup` changed. Then
-set up and link this package:
+Set up and link this package using Bun:
 
 ```sh
 cd /path/to/openwiki
-pnpm install
-pnpm run build
-pnpm link --global
+bun install
+bun run build
+bun link
 ```
 
 Run a dry test from the repo you want OpenWiki to inspect:
@@ -44,10 +35,10 @@ openwiki "Please focus on API documentation"
 The target repo is still the current working directory. The global link only
 avoids typing the path to `dist/cli.js`.
 
-If you do not want to configure pnpm globals, use a shell alias instead:
+If you do not want to configure global links, use a shell alias instead:
 
 ```sh
-alias openwiki='node /path/to/openwiki/dist/cli.js'
+alias openwiki='bun run /path/to/openwiki/dist/cli.js'
 ```
 
 That alias can go in `~/.zshrc` if you want it to persist.
@@ -55,7 +46,7 @@ That alias can go in `~/.zshrc` if you want it to persist.
 After changing OpenWiki source code, rebuild from this package directory:
 
 ```sh
-pnpm run build
+bun run build
 ```
 
 The existing global link will keep using the rebuilt `dist/cli.js`.

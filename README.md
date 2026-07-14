@@ -7,23 +7,17 @@ OpenWiki is a CLI that writes and maintains agent wikis for codebases or purpose
 ## Install
 
 ```sh
-npm install -g openwiki
+bun install -g openwiki
 ```
 
-On Windows, prefer installing OpenWiki with Node.js package managers such as
-`npm` or `pnpm`:
+If you prefer to build from source or run via other package managers:
 
 ```sh
-npm install -g openwiki
-# or
-pnpm add -g openwiki
+bun install
 ```
 
-`bun install -g openwiki` can fall back to compiling OpenWiki's `better-sqlite3`
-checkpointing dependency. Before using that path, install Visual Studio Build
-Tools with the Desktop development with C++ workload. Bun does not run lifecycle
-scripts from installed packages by default, so it cannot display a package-level
-warning before that native dependency build starts.
+> [!NOTE]
+> Bun is the recommended runtime for OpenWiki. If you are on Windows, installing `better-sqlite3` via Bun might compile native bindings. Ensure you have Build Tools installed if prompted.
 
 ## Quick Start
 

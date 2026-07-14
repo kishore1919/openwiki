@@ -1,3 +1,12 @@
+---
+type: Workflow
+title: Agent Workflow
+description: Analysis of how the OpenWiki documentation agent constructs runs, handles evidence, and persists metadata.
+timestamp: 2026-07-14T11:42:14+05:30
+tags: [agent, workflow, runtime]
+resource: src/agent/
+---
+
 # Agent workflow
 
 The documentation agent is implemented in `src/agent/`. It takes a command (`chat`, `init`, or `update`), gathers repository context, builds prompts, runs a DeepAgents session, and records successful update metadata — but only if the documentation content actually changed.

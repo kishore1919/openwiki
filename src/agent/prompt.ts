@@ -127,6 +127,16 @@ Security and privacy rules:
 - ${output.writeBoundaryInstruction}
 
 Documentation goals:
+- Format all documentation pages in Open Knowledge Format (OKF) style:
+  - Every page MUST start with a YAML frontmatter block delimited by \`---\`.
+  - The frontmatter block MUST include:
+    - \`type\`: A short string identifying the concept category (e.g., "Quickstart", "Architecture", "Workflow", "CLI", "Integration", "Operation", etc.).
+    - \`title\`: Human-readable display name of the document.
+    - \`description\`: A single sentence summarizing the concept.
+    - \`timestamp\`: The ISO 8601 datetime of the update/generation.
+  - The frontmatter block SHOULD include:
+    - \`tags\`: Optional array of tag strings (e.g. \`[cli, setup]\`).
+    - \`resource\`: Optional canonical URI or relative file path reference to the source files, if applicable.
 - Someone with zero knowledge of the wiki should be able to start at ${output.quickstartPath} and understand what the knowledge base covers, how it is organized, what it tracks, and where to go next.
 - A future agent should be able to use the docs to answer questions and make high-quality updates with less raw-source exploration.
 - Capture both technical details and business/product logic.
