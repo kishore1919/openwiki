@@ -82,6 +82,10 @@ describe("resolveConfiguredProvider", () => {
     expect(resolveConfiguredProvider({ NVIDIA_API_KEY: "x" })).toBe("nvidia");
   });
 
+  test("falls back to ollama-cloud when only an Ollama key is present", () => {
+    expect(resolveConfiguredProvider({ OLLAMA_API_KEY: "x" })).toBe("ollama-cloud");
+  });
+
   test("falls back to the default provider when nothing is configured", () => {
     expect(resolveConfiguredProvider({})).toBe(DEFAULT_PROVIDER);
   });
@@ -101,6 +105,9 @@ describe("resolveProviderBaseUrl", () => {
     expect(resolveProviderBaseUrl("nvidia", {})).toBe(
       "https://integrate.api.nvidia.com/v1",
     );
+    expect(resolveProviderBaseUrl("ollama-cloud", {})).toBe(
+      "https://ollama.com/v1",
+    );
   });
 
   test("prefers a non-empty env override over the default", () => {
@@ -109,6 +116,12 @@ describe("resolveProviderBaseUrl", () => {
         ANTHROPIC_BASE_URL: "https://gateway.example/anthropic",
       }),
     ).toBe("https://gateway.example/anthropic");
+
+    expect(
+      resolveProviderBaseUrl("ollama-cloud", {
+        OLLAMA_BASE_URL: "https://my-ollama-gateway/v1",
+      }),
+    ).toBe("https://my-ollama-gateway/v1");
   });
 
   test("ignores a whitespace-only override", () => {

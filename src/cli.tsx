@@ -146,17 +146,7 @@ type AppProps = {
   command: CliCommand;
 };
 
-const OPENWIKI_LOGO_LINES = [
-  "  ___                  __        ___ _    _ ",
-  " / _ \\ _ __   ___ _ __ \\ \\      / (_) | _(_)",
-  "| | | | '_ \\ / _ \\ '_ \\ \\ \\ /\\ / /| | |/ / |",
-  "| |_| | |_) |  __/ | | | \\ V  V / | |   <| |",
-  " \\___/| .__/ \\___|_| |_|  \\_/\\_/  |_|_|\\_\\_|",
-  "      |_|",
-];
-const OPENWIKI_LOGO_WIDTH = Math.max(
-  ...OPENWIKI_LOGO_LINES.map((line) => line.length),
-);
+
 
 function App({ command }: AppProps) {
   const app = useApp();
@@ -185,6 +175,7 @@ function App({ command }: AppProps) {
   const activeRunLog = useRef<RunLogItem[]>([]);
   const [runState, setRunState] = useState<RunState>({ status: "idle" });
   const [completedRuns, setCompletedRuns] = useState<CompletedRun[]>([]);
+  const [hasInteracted, setHasInteracted] = useState(false);
   const [activeUserMessage, setActiveUserMessage] = useState<string | null>(
     command.kind === "run" ? command.userMessage : null,
   );
@@ -775,6 +766,7 @@ function App({ command }: AppProps) {
         />
         <ChatHistory runs={completedRuns} />
         <ChatInput
+          key={`chat-input-${completedRuns.length}`}
           currentModelId={getDisplayModelId(displayModelId)}
           currentProvider={sessionProvider}
           onClear={clearSession}
@@ -815,17 +807,35 @@ function App({ command }: AppProps) {
     );
   }
 
+  if (runState.status === "idle" && !hasInteracted) {
+    return (
+      <WelcomeScreen
+        modelId={displayModelId}
+        onSubmit={(message) => {
+          setHasInteracted(true);
+          submitChatMessage(message);
+        }}
+        provider={sessionProvider}
+        suggestions={WELCOME_SUGGESTIONS}
+      />
+    );
+  }
+
   return (
     <Box flexDirection="column">
       <Header modelId={displayModelId} subtitle="Ready for chat" />
       <ChatInput
+        key={`chat-input-${completedRuns.length}`}
         currentModelId={getDisplayModelId(displayModelId)}
         currentProvider={sessionProvider}
         onClear={clearSession}
         onCommandRun={submitCommandRun}
         onModelSelect={selectModel}
         onProviderSelect={selectProvider}
-        onSubmit={submitChatMessage}
+        onSubmit={(message) => {
+          setHasInteracted(true);
+          submitChatMessage(message);
+        }}
       />
     </Box>
   );
@@ -866,6 +876,193 @@ function HelpView() {
             ))
           : null}
       </Panel>
+    </Box>
+  );
+}
+
+const WELCOME_GRADIENT = [
+  "#22d3ee",
+  "#38bdf8",
+  "#60a5fa",
+  "#818cf8",
+  "#a78bfa",
+  "#c084fc",
+  "#e879f9",
+];
+
+const WELCOME_SUGGESTIONS = [
+  "Summarize what this codebase does",
+  "Generate an OpenWiki for this repository",
+  "Explain the architecture and key modules",
+  "Document the public API and entry points",
+  "Find gaps in the existing documentation",
+  "Write onboarding notes for new contributors",
+];
+
+function GradientText({ bold = false, text }: { bold?: boolean; text: string }) {
+  return (
+    <Text bold={bold}>
+      {Array.from(text).map((character, index) => (
+        <Text
+          color={WELCOME_GRADIENT[index % WELCOME_GRADIENT.length]}
+          key={index}
+        >
+          {character}
+        </Text>
+      ))}
+    </Text>
+  );
+}
+
+type WelcomeScreenProps = {
+  modelId: string | null;
+  onSubmit: (message: string) => void;
+  provider: OpenWikiProvider;
+  suggestions: string[];
+};
+
+function WelcomeScreen({
+  modelId,
+  onSubmit,
+  provider,
+  suggestions,
+}: WelcomeScreenProps) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [inputState, setInputState] = useState<ChatInputState>({
+    cursorPosition: 0,
+    value: "",
+  });
+  const input = inputState.value;
+  const cursorPosition = inputState.cursorPosition;
+
+  useInput((inputValue, key) => {
+    if (key.return) {
+      const message = input.trim();
+      onSubmit(message.length > 0 ? message : suggestions[selectedIndex]);
+      return;
+    }
+
+    if (key.escape) {
+      setInputState({ cursorPosition: 0, value: "" });
+      return;
+    }
+
+    if (isMenuUpInput(inputValue, key)) {
+      setSelectedIndex((index) =>
+        clampMenuIndex(index - 1, suggestions.length),
+      );
+      return;
+    }
+
+    if (isMenuDownInput(inputValue, key)) {
+      setSelectedIndex((index) =>
+        clampMenuIndex(index + 1, suggestions.length),
+      );
+      return;
+    }
+
+    if (key.leftArrow) {
+      setInputState((state) => moveInputCursor(state, -1));
+      return;
+    }
+
+    if (key.rightArrow) {
+      setInputState((state) => moveInputCursor(state, 1));
+      return;
+    }
+
+    if (key.backspace || isRawBackspaceInput(inputValue)) {
+      setInputState(deleteBeforeInputCursor);
+      return;
+    }
+
+    if (key.delete) {
+      setInputState(
+        inputValue.length === 0 ? deleteBeforeInputCursor : deleteAtInputCursor,
+      );
+      return;
+    }
+
+    if (input.length === 0 && /^[1-9]$/.test(inputValue)) {
+      const index = Number(inputValue) - 1;
+
+      if (index < suggestions.length) {
+        onSubmit(suggestions[index]);
+        return;
+      }
+    }
+
+    if (inputValue && !key.ctrl && !key.meta && !key.escape) {
+      setInputState((state) => applyRawInputValue(state, inputValue));
+      return;
+    }
+  }, { isActive: true });
+
+  const beforeCursor = input.slice(0, cursorPosition);
+  const afterCursor = input.slice(cursorPosition);
+
+  return (
+    <Box flexDirection="column">
+      <Box flexDirection="column" marginBottom={1}>
+        <Text>
+          <Text bold color="#e879f9">
+            {"✦ "}
+          </Text>
+          <GradientText bold text="OpenWiki" />
+        </Text>
+        <Text color="gray">
+          v{OPENWIKI_VERSION} · {getProviderLabel(provider)} ·{" "}
+          {getDisplayModelId(modelId)}
+        </Text>
+        <Text color="gray">
+          Directory: {sanitizeHeaderValue(formatCwd(process.cwd()), 60)}
+        </Text>
+      </Box>
+
+      <Text color="gray" wrap="wrap">
+        Welcome to OpenWiki — your agentic documentation companion. Pick a
+        suggestion or type a message to begin.
+      </Text>
+
+      <Box flexDirection="column" marginTop={1}>
+        <Text bold color="cyan">
+          Try these
+        </Text>
+        {suggestions.map((suggestion, index) => (
+          <MenuRow
+            description=""
+            isSelected={index === selectedIndex}
+            key={suggestion}
+            label={`${index + 1}. ${suggestion}`}
+          />
+        ))}
+      </Box>
+
+      <Box marginTop={1}>
+        <Text>
+          <Text bold color="cyan">
+            You ›{" "}
+          </Text>
+          {input.length > 0 ? (
+            <>
+              {beforeCursor}
+              <InputCursor />
+              {afterCursor}
+            </>
+          ) : (
+            <>
+              <InputCursor />
+              <Text color="gray">
+                Message OpenWiki, or press ↑/↓ to pick a suggestion
+              </Text>
+            </>
+          )}
+        </Text>
+      </Box>
+      <Text color="gray">
+        {"  "}
+        enter to send · ↑/↓ select · 1-9 jump · / for commands · /exit to quit
+      </Text>
     </Box>
   );
 }
@@ -972,12 +1169,10 @@ function ErrorDiagnosticsPanel({
 function Header({
   compact = false,
   modelId,
-  showLogo = true,
   subtitle,
 }: {
   compact?: boolean;
   modelId?: string | null;
-  showLogo?: boolean;
   subtitle: string;
 }) {
   const terminalColumns = process.stdout.columns ?? 80;
@@ -997,7 +1192,6 @@ function Header({
     formatCwd(process.cwd()),
     Math.max(8, terminalColumns - 17),
   );
-  const shouldShowLogo = showLogo && terminalColumns > OPENWIKI_LOGO_WIDTH;
   const tracingEnabled =
     process.env.LANGCHAIN_TRACING_V2 === "true" &&
     Boolean(process.env.LANGSMITH_API_KEY);
@@ -1006,90 +1200,31 @@ function Header({
     return (
       <Box flexDirection="column" marginBottom={1}>
         <Text wrap="truncate">
-          <Text color="cyan">{">_ "}</Text>
-          <Text bold>OpenWiki</Text>{" "}
-          <Text color="gray">v{OPENWIKI_VERSION}</Text>{" "}
-          <Text color="gray">provider: </Text>
-          <Text color="white">{displayProvider}</Text>{" "}
-          {chatGptAccount ? (
-            <>
-              <Text color="gray">account: </Text>
-              <Text color="white">{chatGptAccount}</Text>{" "}
-            </>
-          ) : null}
-          <Text color="gray">model: </Text>
-          <Text color="white">{displayModelId}</Text>
+          <Text color="#e879f9" bold>{"✦ "}</Text>
+          <Text color="cyan" bold>OpenWiki</Text>
+          <Text color="gray">  {displayProvider} · {displayModelId}</Text>
+          <Text color="gray">  ·  {displayDirectory}</Text>
         </Text>
-        <Text>
-          <Text color={tracingEnabled ? "green" : "gray"}>
-            {tracingEnabled ? "* " : "- "}
-          </Text>
-          <Text color={tracingEnabled ? "green" : "gray"}>
-            LangSmith tracing {tracingEnabled ? "enabled" : "disabled"}
-          </Text>
-          <Text color="gray"> - </Text>
-          <Text color="cyan">{subtitle}</Text>
-        </Text>
+        <Text color="gray">{subtitle}</Text>
       </Box>
     );
   }
 
   return (
     <Box flexDirection="column" marginBottom={1}>
-      {shouldShowLogo ? (
-        <Box flexDirection="column" marginBottom={1}>
-          {OPENWIKI_LOGO_LINES.map((line) => (
-            <Text bold color="cyan" key={line} wrap="truncate">
-              {line}
-            </Text>
-          ))}
-        </Box>
+      <Text wrap="truncate">
+        <Text color="#e879f9" bold>{"✦ "}</Text>
+        <Text color="cyan" bold>OpenWiki</Text>{" "}
+        <Text color="gray">v{OPENWIKI_VERSION} · {displayProvider} · {displayModelId}</Text>
+      </Text>
+      <Text color="gray">{displayDirectory}</Text>
+      {chatGptAccount ? (
+        <Text color="gray">Account · {chatGptAccount}</Text>
       ) : null}
-      <Box
-        borderColor="cyan"
-        borderStyle="round"
-        flexDirection="column"
-        marginBottom={1}
-        paddingX={1}
-      >
-        <Text>
-          <Text color="cyan">{">_ "}</Text>
-          <Text bold>OpenWiki</Text>{" "}
-          <Text color="gray">v{OPENWIKI_VERSION}</Text>{" "}
-          <Text color="gray">agent docs for codebases</Text>
-        </Text>
-        <Text>
-          <Text color="gray">provider: </Text>
-          <Text color="white">{displayProvider}</Text>
-        </Text>
-        {chatGptAccount ? (
-          <Text>
-            <Text color="gray">account: </Text>
-            <Text color="white">{chatGptAccount}</Text>
-          </Text>
-        ) : null}
-        <Text>
-          <Text color="gray">model: </Text>
-          <Text color="white">{displayModelId}</Text>
-        </Text>
-        <Text>
-          <Text color="gray">directory: </Text>
-          <Text color="white">{displayDirectory}</Text>
-        </Text>
-      </Box>
-      <Text>
-        <Text color={tracingEnabled ? "green" : "gray"}>
-          {tracingEnabled ? "* " : "- "}
-        </Text>
-        <Text color={tracingEnabled ? "green" : "gray"}>
-          LangSmith tracing {tracingEnabled ? "enabled" : "disabled"}
-        </Text>
-        <Text color="gray"> - </Text>
-        <Text color="cyan">{subtitle}</Text>
-      </Text>
       <Text color="gray">
-        Tip: ask for a docs change, or use /exit when you are done.
+        Tracing · {tracingEnabled ? "enabled" : "disabled"}
       </Text>
+      <Text color="cyan" bold>{subtitle}</Text>
     </Box>
   );
 }
@@ -1176,7 +1311,6 @@ function RunView({
       <Header
         compact
         modelId={modelId}
-        showLogo={false}
         subtitle={done ? "Run complete" : "Agent running"}
       />
       {message ? <PromptBlock message={message} /> : null}
@@ -1226,7 +1360,7 @@ function RunLogLine({
         <Box flexDirection="column" marginBottom={1}>
           <Text>
             <Text color={isActive ? "cyan" : "gray"}>
-              {isActive ? `${getSpinnerFrame(animationFrame)} ` : "* "}
+              {isActive ? `${getSpinnerFrame(animationFrame)} ` : "✔ "}
             </Text>
             <Text bold={isActive} color={isActive ? "cyan" : "gray"}>
               {item.content}
@@ -1244,7 +1378,7 @@ function RunLogLine({
         <Box flexDirection="column" marginBottom={1}>
           <Text>
             <Text bold color="red">
-              {"!! "}
+              {"✖ "}
             </Text>
             <Text bold color="red">
               {item.content}
@@ -1257,7 +1391,7 @@ function RunLogLine({
     return (
       <Box flexDirection="column" marginBottom={1}>
         <Text>
-          <Text color="green">{"* "}</Text>
+          <Text color="green">{"✔ "}</Text>
           <Text color="gray">{item.content}</Text>
         </Text>
       </Box>
@@ -1274,9 +1408,9 @@ function RunLogLine({
   }
 
   return (
-    <Box flexDirection="row">
-      <Text color="white">* </Text>
-      <Box flexDirection="column">
+    <Box flexDirection="column" marginBottom={1}>
+      <Text color="cyan" bold>OpenWiki ›</Text>
+      <Box flexDirection="column" marginLeft={2}>
         <MarkdownText markdown={item.content.trim()} />
       </Box>
     </Box>
@@ -1606,14 +1740,14 @@ function ChatInput({
 
     if (isMenuUpInput(inputValue, key) && menuState.kind !== "none") {
       setMenuState((state) =>
-        moveMenuSelection(state, -1, currentModelId, currentProvider),
+        moveMenuSelection(state, -1, currentModelId, currentProvider, input),
       );
       return;
     }
 
     if (isMenuDownInput(inputValue, key) && menuState.kind !== "none") {
       setMenuState((state) =>
-        moveMenuSelection(state, 1, currentModelId, currentProvider),
+        moveMenuSelection(state, 1, currentModelId, currentProvider, input),
       );
       return;
     }
@@ -1671,7 +1805,7 @@ function ChatInput({
       setNotice(null);
       setInputState((state) => applyRawInputValue(state, inputValue));
     }
-  });
+  }, { isActive: true });
 
   async function submitInput() {
     const message = input.trim();
@@ -1691,8 +1825,12 @@ function ChatInput({
   }
 
   async function submitSlashInput(message: string) {
-    if (message === "/" && menuState.kind === "commands") {
-      await runSlashCommand(slashCommandOptions[menuState.selectedIndex]);
+    if (menuState.kind === "commands" && !message.includes(" ")) {
+      const filtered = getFilteredCommands(message);
+      const option = filtered[menuState.selectedIndex];
+      if (option) {
+        await runSlashCommand(option);
+      }
       return;
     }
 
@@ -1830,7 +1968,7 @@ function ChatInput({
   }
 
   async function selectModelMenuOption(selectedIndex: number) {
-    const option = getModelMenuOptions(currentModelId, currentProvider)[
+    const option = getFilteredModels(input, currentModelId, currentProvider)[
       selectedIndex
     ];
 
@@ -1877,7 +2015,7 @@ function ChatInput({
   }
 
   async function selectProviderMenuOption(selectedIndex: number) {
-    const provider = SELECTABLE_OPENWIKI_PROVIDERS[selectedIndex];
+    const provider = getFilteredProviders(input)[selectedIndex];
 
     if (!provider) {
       setError("Select a provider.");
@@ -1981,9 +2119,11 @@ function ChatInput({
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      <Box borderStyle="single" borderColor="blue" paddingX={1}>
+      <Box paddingLeft={1}>
         <Text>
-          <Text color="blue">{">"}</Text>{" "}
+          <Text color={secretInputMode !== null ? "yellow" : "cyan"} bold>
+            {secretInputMode !== null ? "Key › " : "You › "}
+          </Text>
           {secretInputMode !== null ? (
             <>
               <Text color="gray">{secretInputMode.envKey}=</Text>
@@ -2005,11 +2145,10 @@ function ChatInput({
       </Box>
       <Text>
         <Text color="gray">
+          {"  "}
           {secretInputMode !== null
             ? "enter to save - esc to cancel - input is masked"
-            : `enter to send - / for commands - /exit to quit - cwd ${formatCwd(
-                process.cwd(),
-              )}`}
+            : "enter to send - / for commands - /exit to quit"}
         </Text>
       </Text>
       {secretInputMode !== null ? (
@@ -2131,6 +2270,31 @@ const slashCommandOptions: SlashCommandOption[] = [
   },
 ];
 
+function getFilteredCommands(input: string) {
+  return slashCommandOptions.filter((option) =>
+    option.label.startsWith(input),
+  );
+}
+
+function getFilteredProviders(input: string) {
+  const filter = input.slice("/provider".length).trim().toLowerCase();
+  return SELECTABLE_OPENWIKI_PROVIDERS.filter((provider) =>
+    getProviderLabel(provider).toLowerCase().startsWith(filter),
+  );
+}
+
+function getFilteredModels(
+  input: string,
+  currentModelId: string,
+  currentProvider: OpenWikiProvider,
+) {
+  const filter = input.slice("/model".length).trim().toLowerCase();
+  const options = getModelMenuOptions(currentModelId, currentProvider);
+  return options.filter((option) =>
+    option.label.toLowerCase().includes(filter),
+  );
+}
+
 function SlashMenu({
   currentModelId,
   currentProvider,
@@ -2143,7 +2307,7 @@ function SlashMenu({
   menuState: Exclude<ChatInputMenuState, { kind: "none" }>;
 }) {
   if (menuState.kind === "model") {
-    const modelOptions = getModelMenuOptions(currentModelId, currentProvider);
+    const modelOptions = getFilteredModels(input, currentModelId, currentProvider);
 
     return (
       <Box flexDirection="column" marginTop={1}>
@@ -2172,10 +2336,12 @@ function SlashMenu({
   }
 
   if (menuState.kind === "provider") {
+    const providers = getFilteredProviders(input);
+
     return (
       <Box flexDirection="column" marginTop={1}>
         <Text color="gray">Providers</Text>
-        {SELECTABLE_OPENWIKI_PROVIDERS.map((provider, index) => (
+        {providers.map((provider, index) => (
           <MenuRow
             description={
               provider === currentProvider
@@ -2192,10 +2358,12 @@ function SlashMenu({
     );
   }
 
+  const commands = getFilteredCommands(input);
+
   return (
     <Box flexDirection="column" marginTop={1}>
       <Text color="gray">Commands</Text>
-      {slashCommandOptions.map((option, index) => (
+      {commands.map((option, index) => (
         <MenuRow
           description={option.description}
           isSelected={index === menuState.selectedIndex}
@@ -2358,44 +2526,47 @@ function syncMenuStateForInput(
   currentProvider: OpenWikiProvider,
 ): ChatInputMenuState {
   if (input.startsWith("/provider")) {
+    const filtered = getFilteredProviders(input);
     const selectedIndex =
       currentState.kind === "provider"
         ? currentState.selectedIndex
-        : getCurrentProviderOptionIndex(currentProvider);
+        : 0;
 
     return {
       kind: "provider",
       selectedIndex: clampMenuIndex(
         selectedIndex,
-        SELECTABLE_OPENWIKI_PROVIDERS.length,
+        filtered.length,
       ),
     };
   }
 
   if (input.startsWith("/model")) {
+    const filtered = getFilteredModels(input, currentModelId, currentProvider);
     const selectedIndex =
       currentState.kind === "model"
         ? currentState.selectedIndex
-        : getCurrentModelOptionIndex(currentModelId, currentProvider);
+        : 0;
 
     return {
       kind: "model",
       selectedIndex: clampMenuIndex(
         selectedIndex,
-        getModelMenuOptions(currentModelId, currentProvider).length,
+        filtered.length,
       ),
     };
   }
 
   if (input.startsWith("/")) {
+    const filtered = getFilteredCommands(input);
     const selectedIndex =
       currentState.kind === "commands"
         ? currentState.selectedIndex
-        : getCommandOptionIndex(input);
+        : 0;
 
     return {
       kind: "commands",
-      selectedIndex: clampMenuIndex(selectedIndex, slashCommandOptions.length),
+      selectedIndex: clampMenuIndex(selectedIndex, filtered.length),
     };
   }
 
@@ -2407,6 +2578,7 @@ function moveMenuSelection(
   offset: number,
   currentModelId: string,
   currentProvider: OpenWikiProvider,
+  input: string,
 ): ChatInputMenuState {
   if (menuState.kind === "none") {
     return menuState;
@@ -2414,10 +2586,10 @@ function moveMenuSelection(
 
   const itemCount =
     menuState.kind === "model"
-      ? getModelMenuOptions(currentModelId, currentProvider).length
+      ? getFilteredModels(input, currentModelId, currentProvider).length
       : menuState.kind === "provider"
-        ? SELECTABLE_OPENWIKI_PROVIDERS.length
-        : slashCommandOptions.length;
+        ? getFilteredProviders(input).length
+        : getFilteredCommands(input).length;
 
   return {
     ...menuState,
@@ -2425,13 +2597,6 @@ function moveMenuSelection(
   };
 }
 
-function getCommandOptionIndex(input: string): number {
-  const matchingIndex = slashCommandOptions.findIndex((option) =>
-    option.label.startsWith(input),
-  );
-
-  return matchingIndex === -1 ? 0 : matchingIndex;
-}
 
 function getCurrentModelOptionIndex(
   currentModelId: string,
@@ -2538,9 +2703,8 @@ function formatSecretInputSummary(value: string): string {
 function PromptBlock({ message }: { message: string }) {
   return (
     <Box flexDirection="column" marginBottom={1}>
-      <Text backgroundColor="gray" wrap="wrap">
-        {" "}
-        <Text color="cyan">{">"}</Text> {message}
+      <Text wrap="wrap">
+        <Text color="cyan" bold>You › </Text>{message}
       </Text>
     </Box>
   );

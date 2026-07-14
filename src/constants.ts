@@ -3,6 +3,8 @@ export const UPDATE_METADATA_PATH = `${OPEN_WIKI_DIR}/.last-update.json`;
 export const BASETEN_API_KEY_ENV_KEY = "BASETEN_API_KEY";
 export const FIREWORKS_API_KEY_ENV_KEY = "FIREWORKS_API_KEY";
 export const NVIDIA_API_KEY_ENV_KEY = "NVIDIA_API_KEY";
+export const OLLAMA_API_KEY_ENV_KEY = "OLLAMA_API_KEY";
+export const OLLAMA_BASE_URL_ENV_KEY = "OLLAMA_BASE_URL";
 export const OPENAI_API_KEY_ENV_KEY = "OPENAI_API_KEY";
 export const OPENAI_COMPATIBLE_API_KEY_ENV_KEY = "OPENAI_COMPATIBLE_API_KEY";
 export const OPENAI_COMPATIBLE_BASE_URL_ENV_KEY = "OPENAI_COMPATIBLE_BASE_URL";
@@ -61,7 +63,8 @@ export type OpenWikiProvider =
   | "openai"
   | "openai-chatgpt"
   | "openai-compatible"
-  | "openrouter";
+  | "openrouter"
+  | "ollama-cloud";
 
 /**
  * How a provider authenticates. Providers default to `"api-key"` (a pasted
@@ -122,6 +125,7 @@ export const SELECTABLE_OPENWIKI_PROVIDERS = [
   "fireworks",
   "baseten",
   "nvidia",
+  "ollama-cloud",
 ] as const satisfies readonly SelectableOpenWikiProvider[];
 
 export const PROVIDER_CONFIGS: Record<OpenWikiProvider, ProviderConfig> = {
@@ -208,6 +212,17 @@ export const PROVIDER_CONFIGS: Record<OpenWikiProvider, ProviderConfig> = {
       { id: "anthropic/claude-sonnet-5", label: "Claude Sonnet" },
       { id: "openai/gpt-5.4-mini", label: "GPT 5.4 mini" },
       { id: "openai/gpt-5.5", label: "GPT 5.5" },
+    ],
+  },
+  "ollama-cloud": {
+    apiKeyEnvKey: OLLAMA_API_KEY_ENV_KEY,
+    baseUrlEnvKey: OLLAMA_BASE_URL_ENV_KEY,
+    baseURL: "https://ollama.com/v1",
+    label: "Ollama Cloud",
+    modelOptions: [
+      { id: "gemma4:cloud", label: "Gemma 4 (Cloud)" },
+      { id: "qwen3.6:cloud", label: "Qwen 3.6 (Cloud)" },
+      { id: "deepseek-v3:cloud", label: "DeepSeek V3 (Cloud)" },
     ],
   },
 };
@@ -333,7 +348,9 @@ export function resolveConfiguredProvider(
                 ? "fireworks"
                 : env[NVIDIA_API_KEY_ENV_KEY]
                   ? "nvidia"
-                  : DEFAULT_PROVIDER)
+                  : env[OLLAMA_API_KEY_ENV_KEY]
+                    ? "ollama-cloud"
+                    : DEFAULT_PROVIDER)
   );
 }
 

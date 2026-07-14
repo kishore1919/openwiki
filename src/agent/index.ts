@@ -352,10 +352,6 @@ async function createCheckpointer(
       options,
       "checkpointer.fallback=memory reason=sqlite-unavailable",
     );
-    options.onEvent?.({
-      type: "text",
-      text: "SQLite checkpointer unavailable on this runtime (better-sqlite3 requires Node.js). Using in-memory checkpoints for this session.",
-    });
 
     return {
       checkpointer: new MemorySaver(),
