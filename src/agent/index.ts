@@ -3,6 +3,7 @@ import { chmod, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { ChatAnthropic } from "@langchain/anthropic";
 import type { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
+import { ChatBedrockConverse } from "@langchain/aws";
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatOpenRouter } from "@langchain/openrouter";
 import type { Event as ProtocolEvent } from "@langchain/protocol";
@@ -38,10 +39,14 @@ import type {
 } from "./types.js";
 import {
   ANTHROPIC_BASE_URL_ENV_KEY,
+  BEDROCK_AWS_REGION_ENV_KEY,
   getDefaultModelId,
   getProviderApiKeyEnvKey,
   getProviderBaseUrlEnvKey,
   getProviderLabel,
+  getProviderModelOptions,
+  getProviderRegionEnvKey,
+  getProviderSecretKeyEnvKey,
   isValidModelId,
   normalizeModelId,
   OPENAI_COMPATIBLE_BASE_URL_ENV_KEY,
@@ -51,8 +56,11 @@ import {
   OPENWIKI_PROVIDER_ENV_KEY,
   OPENWIKI_PROVIDER_RETRY_ATTEMPTS_ENV_KEY,
   providerRequiresBaseUrl,
+  providerRequiresRegion,
+  providerRequiresSecretKey,
   resolveConfiguredProvider,
   resolveProviderBaseUrl,
+  resolveProviderRegion,
   resolveProviderRetryAttempts,
   type OpenWikiProvider,
 } from "../constants.js";
@@ -115,6 +123,8 @@ export async function runOpenWikiAgent(
   ensureProviderKey(provider);
   emitDebug(options, `credentials=${provider} key present`);
   ensureProviderBaseUrl(provider);
+  ensureProviderSecretKey(provider);
+  ensureProviderRegion(provider);
 
   if (provider === "openai-chatgpt") {
     // Refresh before the model is built, so `createModel` stays synchronous.
@@ -434,15 +444,50 @@ function ensureProviderBaseUrl(provider: OpenWikiProvider): void {
   }
 }
 
-function resolveModelId(
+function ensureProviderSecretKey(provider: OpenWikiProvider): void {
+  if (!providerRequiresSecretKey(provider)) {
+    return;
+  }
+
+  const secretKeyEnvKey = getProviderSecretKeyEnvKey(provider);
+
+  if (secretKeyEnvKey && !process.env[secretKeyEnvKey]) {
+    throw new Error(
+      `${secretKeyEnvKey} is required to run OpenWiki with ${getProviderLabel(provider)}.`,
+    );
+  }
+}
+
+function ensureProviderRegion(provider: OpenWikiProvider): void {
+  if (!providerRequiresRegion(provider)) {
+    return;
+  }
+
+  if (!resolveProviderRegion(provider)) {
+    const regionEnvKey = getProviderRegionEnvKey(provider) ?? "region";
+
+    throw new Error(
+      `${regionEnvKey} is required to run OpenWiki with ${getProviderLabel(provider)}.`,
+    );
+  }
+}
+
+export function resolveModelId(
   options: OpenWikiRunOptions,
   provider: OpenWikiProvider,
 ): string {
-  const rawModelId =
-    options.modelId ??
-    process.env[OPENWIKI_MODEL_ID_ENV_KEY] ??
-    getDefaultModelId(provider);
-  const modelId = normalizeModelId(rawModelId);
+  const configuredModelId =
+    options.modelId ?? process.env[OPENWIKI_MODEL_ID_ENV_KEY];
+
+  if (!configuredModelId && getProviderModelOptions(provider).length === 0) {
+    throw new Error(
+      `${OPENWIKI_MODEL_ID_ENV_KEY} is required to run OpenWiki with ${getProviderLabel(provider)}.`,
+    );
+  }
+
+  const modelId = normalizeModelId(
+    configuredModelId ?? getDefaultModelId(provider),
+  );
 
   if (!isValidModelId(modelId)) {
     throw new Error(
@@ -512,6 +557,22 @@ function createModel(
       baseURL: OPENROUTER_BASE_URL,
       model: modelId,
       siteName: "OpenWiki",
+      ...retryOptions,
+    });
+  }
+
+  if (provider === "bedrock") {
+    const secretKeyEnvKey = getProviderSecretKeyEnvKey(provider);
+
+    return new ChatBedrockConverse({
+      credentials: {
+        accessKeyId: process.env[getProviderApiKeyEnvKey(provider)] ?? "",
+        secretAccessKey: secretKeyEnvKey
+          ? (process.env[secretKeyEnvKey] ?? "")
+          : "",
+      },
+      model: modelId,
+      region: resolveProviderRegion(provider),
       ...retryOptions,
     });
   }
@@ -1340,7 +1401,8 @@ function formatDebugValue(key: string, value: string | undefined): string {
   if (
     key === OPENWIKI_MODEL_ID_ENV_KEY ||
     key === OPENWIKI_PROVIDER_ENV_KEY ||
-    key === OPENWIKI_PROVIDER_RETRY_ATTEMPTS_ENV_KEY
+    key === OPENWIKI_PROVIDER_RETRY_ATTEMPTS_ENV_KEY ||
+    key === BEDROCK_AWS_REGION_ENV_KEY
   ) {
     return `set(value=${JSON.stringify(value)})`;
   }
