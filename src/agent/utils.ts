@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { OPEN_WIKI_DIR, UPDATE_METADATA_PATH } from "../constants.js";
@@ -127,11 +127,41 @@ export async function getUpdateNoopStatus(
     }
   }
 
+  if (!(await wikiMapExists(cwd))) {
+    return {
+      shouldSkip: false,
+      reason: "missing map.md architecture overview",
+    };
+  }
+
   return {
     shouldSkip: true,
     gitHead: head,
     model: lastUpdate.model,
   };
+}
+
+async function wikiMapExists(cwd: string): Promise<boolean> {
+  const candidates = [
+    path.join(cwd, "map.md"),
+    path.join(cwd, OPEN_WIKI_DIR, "map.md"),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      const stats = await stat(candidate);
+
+      if (stats.isFile()) {
+        return true;
+      }
+    } catch (error) {
+      if (!isFileNotFoundError(error)) {
+        throw error;
+      }
+    }
+  }
+
+  return false;
 }
 
 export function shouldCheckUpdateNoop(options: OpenWikiRunOptions): boolean {
