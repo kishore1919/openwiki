@@ -19,6 +19,7 @@ Do not force a diagram where a short paragraph is clearer, and never put secrets
 
 ## Required Shape
 
+- OpenWiki maintains a top-level architecture overview at the wiki root named `map.md` (code mode: `openwiki/map.md`, local-wiki: `~/.openwiki/wiki/map.md`). It is generated during init and refreshed during update when the architecture changes. Keep its diagram high-level (one primary graph/flowchart of the major components and their connections) and in sync with the actual structure; do not crowd it with low-level detail.
 - Use exactly one fenced block per diagram with the `mermaid` info string:
 
   ````markdown
