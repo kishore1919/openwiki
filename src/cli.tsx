@@ -51,6 +51,7 @@ import {
   readOpenWikiOnboardingConfig,
   saveOpenWikiOnboardingConfig,
 } from "./onboarding.js";
+import { runMermaidValidation } from "./mermaid/cli.js";
 import { openWikiLocalWikiDir } from "./openwiki-home.js";
 import {
   deleteConnectorSchedules,
@@ -3481,7 +3482,9 @@ const command = await resolveStartupCommand(parsedCommand, {
   isStdinTTY: Boolean(process.stdin.isTTY),
 });
 
-if (command.kind === "auth") {
+if (command.kind === "mermaid") {
+  process.exitCode = await runMermaidValidation(command.paths);
+} else if (command.kind === "auth") {
   await runAuthCommand(command);
 } else if (command.kind === "ngrok") {
   await runNgrokCommand(command);

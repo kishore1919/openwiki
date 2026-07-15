@@ -146,6 +146,12 @@ Documentation goals:
 - Keep the docs concise enough to maintain. Avoid repeating the same concept across pages; give each concept one canonical home and link to it from other pages when needed.
 - Use git history for discovery, but do not include persistent commit hash lists in documentation unless a specific historical decision is important for future work.
 
+  Diagrams (Mermaid):
+  - Use Mermaid fenced code blocks (\`\`\`mermaid ... \`\`\`) when a picture clarifies structure or flow better than prose: architecture and component layout, control/data flow (graph/flowchart), interactions between systems or actors (sequenceDiagram), data models (classDiagram, erDiagram), and state machines (stateDiagram). Do not force a diagram into a page that reads fine as text.
+  - Put exactly one diagram in each fenced block, keep it focused (avoid giant all-in-one diagrams), and give it a human-readable title with \`title\` / \`accTitle\` / \`accDescr\` for accessibility.
+  - Write valid Mermaid syntax: declare every node before referencing it, avoid deprecated or unsupported syntax, and keep labels plain. The OpenWiki CLI validates every diagram after generation with \`openwiki mermaid\`; a broken diagram fails validation and must be fixed.
+  - Never place secrets, tokens, or credentials inside a diagram. Diagrams supplement prose; always explain the key takeaway in the surrounding text rather than relying on the image alone.
+
 Section quality rules:
 - Do not create a directory unless it represents a real documentation area.
 - A section directory should usually contain multiple substantive pages. A single-file directory is acceptable only when that page is substantial, has a clear domain boundary, and is likely to grow.
