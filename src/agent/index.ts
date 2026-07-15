@@ -8,9 +8,12 @@ import { ChatBedrockConverse } from "@langchain/aws";
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatOpenRouter } from "@langchain/openrouter";
 import type { Event as ProtocolEvent } from "@langchain/protocol";
-import { createDeepAgent } from "deepagents";
+import {
+  CompositeBackend,
+  createDeepAgent,
+  FilesystemBackend,
+} from "deepagents";
 import { createOpenWikiConnectorTools } from "../connectors/tools.js";
-import { ensureWriteConnectorSkill } from "../connectors/write-connector-skill.js";
 import {
   DEBUG_ENV_KEYS,
   loadOpenWikiEnv,
@@ -19,7 +22,7 @@ import {
 } from "../env.js";
 import { isFileNotFoundError } from "../fs-errors.js";
 import { SECRET_KEY_PATTERN_SOURCE } from "../diagnostics.js";
-import { openWikiLocalWikiDir } from "../openwiki-home.js";
+import { openWikiLocalWikiDir, openWikiSkillsDir } from "../openwiki-home.js";
 import { OpenWikiLocalShellBackend } from "./docs-only-backend.js";
 import {
   CODEX_ORIGINATOR,
@@ -31,6 +34,7 @@ import {
   refreshChatGptTokens,
 } from "./openai-chatgpt-oauth.js";
 import { createSystemPrompt, createUserPrompt } from "./prompt.js";
+import { syncBundledSkills } from "./skills.js";
 import type {
   OpenWikiCommand,
   OpenWikiOutputMode,
@@ -95,7 +99,7 @@ export async function runOpenWikiAgent(
   emitDebug(options, `env.beforeLoad ${formatEnvironmentDebug()}`);
 
   await loadOpenWikiEnv();
-  await ensureWriteConnectorSkill();
+  await syncBundledSkills();
   emitDebug(options, "env=loaded ~/.openwiki/.env");
   emitDebug(options, `env.afterLoad ${formatEnvironmentDebug()}`);
 
@@ -181,25 +185,42 @@ async function runOpenWikiAgentCore(
   const model = createModel(provider, modelId, providerRetryAttempts);
   emitDebug(options, `model.provider=${provider}`);
   emitDebug(options, "model=initialized");
-  const { checkpointer, backend } = await createCheckpointer(options);
-  emitDebug(
-    options,
-    `checkpointer=${backend === "sqlite" ? formatUrlDebugValue(checkpointPath) : "memory"}`,
-  );
   const threadId = options.threadId ?? createThreadId(cwd, createRunThreadId());
   emitDebug(options, `thread=${threadId}`);
+  const { checkpointer, backend: checkpointBackend } = await createCheckpointer(
+    options,
+  );
+  emitDebug(
+    options,
+    `checkpointer=${
+      checkpointBackend === "sqlite"
+        ? formatUrlDebugValue(checkpointPath)
+        : "memory"
+    }`,
+  );
+  const wikiBackend = new OpenWikiLocalShellBackend({
+    docsOnly: command !== "chat",
+    maxOutputBytes: 100_000,
+    outputMode,
+    rootDir: cwd,
+    timeout: 120,
+    virtualMode: true,
+  });
+  const backend = new CompositeBackend(wikiBackend, {
+    "/skills/": new FilesystemBackend({
+      rootDir: openWikiSkillsDir,
+      virtualMode: true,
+    }),
+  });
   const agent = createDeepAgent({
     model,
     tools: createOpenWikiConnectorTools(),
     checkpointer,
-    backend: new OpenWikiLocalShellBackend({
-      docsOnly: command !== "chat",
-      maxOutputBytes: 100_000,
-      outputMode,
-      rootDir: cwd,
-      timeout: 120,
-      virtualMode: true,
-    }),
+    backend,
+    skills: ["/skills/"],
+    permissions: [
+      { operations: ["write"], paths: ["/skills/**"], mode: "deny" },
+    ],
     systemPrompt: createSystemPrompt(command, outputMode),
   });
   emitDebug(options, "agent=created");
@@ -265,7 +286,7 @@ async function runOpenWikiAgentCore(
 
     throw error;
   }
-  if (backend === "sqlite") {
+  if (checkpointBackend === "sqlite") {
     await chmodIfExists(checkpointPath, 0o600);
   }
 
