@@ -18,6 +18,7 @@ OpenWiki is a TypeScript CLI that writes and maintains documentation for a repos
 - Uses a DeepAgents local shell backend with virtual filesystem paths rooted at the target repository.
 - Creates or refreshes documentation under the target repository's `openwiki/` directory.
 - Auto-exits after successful `--init` or `--update` runs in an interactive terminal, so the CLI works as both a one-shot and interactive tool.
+- A high-level visual overview of the codebase lives in [Architecture map](map.md).
 - Optionally schedules automated updates through GitHub Actions, GitLab CI, or Bitbucket Pipelines.
 
 ## Start here
