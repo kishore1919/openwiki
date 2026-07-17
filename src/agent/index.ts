@@ -3,9 +3,9 @@ import { chmod, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
 import { ChatAnthropic } from "@langchain/anthropic";
+import type { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
 import { ChatBedrockConverse } from "@langchain/aws";
 import { ChatGoogle } from "@langchain/google/node";
-import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatOpenRouter } from "@langchain/openrouter";
 import type { Event as ProtocolEvent } from "@langchain/protocol";
@@ -223,13 +223,16 @@ async function runOpenWikiAgentCore(
   emitDebug(options, "model=initialized");
   const threadId = options.threadId ?? createThreadId(cwd, createRunThreadId());
   emitDebug(options, `thread=${threadId}`);
-  const checkpointTarget = resolveCheckpointTarget(command);
-  const checkpointer = await createCheckpointer(checkpointTarget);
+  const { checkpointer, backend: checkpointBackend } = await createCheckpointer(
+    options,
+  );
   emitDebug(
     options,
-    checkpointTarget.persistent
-      ? `checkpointer=${formatUrlDebugValue(checkpointTarget.connString)}`
-      : "checkpointer=memory",
+    `checkpointer=${
+      checkpointBackend === "sqlite"
+        ? formatUrlDebugValue(checkpointPath)
+        : "memory"
+    }`,
   );
   const wikiBackend = new OpenWikiLocalShellBackend({
     docsOnly: command !== "chat",
@@ -323,9 +326,8 @@ async function runOpenWikiAgentCore(
 
     throw error;
   }
-
-  if (checkpointTarget.persistent) {
-    await chmodIfExists(checkpointTarget.connString, 0o600);
+  if (checkpointBackend === "sqlite") {
+    await chmodIfExists(checkpointPath, 0o600);
   }
 
   const metadataWritten = await persistRunMetadataIfChanged(
@@ -354,11 +356,6 @@ async function runOpenWikiAgentCore(
 }
 
 const checkpointPath = path.join(openWikiEnvDir, "openwiki.sqlite");
-
-export type CheckpointTarget = {
-  connString: string;
-  persistent: boolean;
-};
 
 function createRunUserMessage(
   command: OpenWikiCommand,
@@ -401,39 +398,56 @@ function formatRuntimeRootInstruction(outputMode: OpenWikiOutputMode): string {
   return "Treat the repository root above as source evidence only. The canonical generated wiki is ~/.openwiki/wiki, not a repository-local openwiki/ directory. Filesystem tools use a virtual root: / means the repository root for source inspection paths such as /README.md, /agent/agents/main.py, and /package.json.";
 }
 
+type CheckpointerBackend = "sqlite" | "memory";
+
 async function createCheckpointer(
-  target: CheckpointTarget,
-): Promise<SqliteSaver> {
-  if (target.persistent) {
-    await prepareCheckpointDirectory(target.connString);
-  }
-
-  return SqliteSaver.fromConnString(target.connString);
-}
-
-async function prepareCheckpointDirectory(filePath: string): Promise<void> {
-  const checkpointDir = path.dirname(filePath);
-  await mkdir(checkpointDir, {
+  options: OpenWikiRunOptions = {},
+): Promise<{ checkpointer: BaseCheckpointSaver; backend: CheckpointerBackend }> {
+  await mkdir(openWikiEnvDir, {
     recursive: true,
     mode: 0o700,
   });
-  await chmodIfExists(checkpointDir, 0o700);
-}
-
-export function resolveCheckpointTarget(
-  command: OpenWikiCommand,
-): CheckpointTarget {
-  if (command === "chat") {
+  try {
+    const { SqliteSaver } = await import(
+      "@langchain/langgraph-checkpoint-sqlite"
+    );
     return {
-      connString: checkpointPath,
-      persistent: true,
+      checkpointer: SqliteSaver.fromConnString(checkpointPath),
+      backend: "sqlite",
+    };
+  } catch (error) {
+    if (!isSqliteUnsupportedError(error)) {
+      throw error;
+    }
+
+    // better-sqlite3 is a native Node addon and is not supported under Bun
+    // (https://github.com/oven-sh/bun/issues/4290). Fall back to an in-memory
+    // checkpointer so the agent can still run; conversation state will not
+    // persist across process restarts.
+    const { MemorySaver } = await import("@langchain/langgraph-checkpoint");
+    emitDebug(
+      options,
+      "checkpointer.fallback=memory reason=sqlite-unavailable",
+    );
+    options.onEvent?.({
+      type: "text",
+      text: "SQLite checkpointer unavailable on this runtime (better-sqlite3 requires Node.js). Using in-memory checkpoints for this session.",
+    });
+
+    return {
+      checkpointer: new MemorySaver(),
+      backend: "memory",
     };
   }
+}
 
-  return {
-    connString: ":memory:",
-    persistent: false,
-  };
+function isSqliteUnsupportedError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes("better-sqlite3") ||
+    message.includes("bun:sqlite") ||
+    /not yet supported in Bun/i.test(message)
+  );
 }
 
 async function chmodIfExists(filePath: string, mode: number): Promise<void> {
@@ -1329,8 +1343,10 @@ function installOpenRouterDebugFetch(
 ): OpenRouterFetchCapture {
   const originalFetch = globalThis.fetch;
   let lastFailure: OpenRouterFetchFailure | null = null;
-
-  globalThis.fetch = (async (input, init) => {
+  globalThis.fetch = (async (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => {
     if (!isOpenRouterFetchInput(input)) {
       return originalFetch(input, init);
     }
@@ -1366,7 +1382,7 @@ function installOpenRouterDebugFetch(
       };
       throw error;
     }
-  }) satisfies typeof fetch;
+  }) as typeof fetch;
 
   return {
     clearLastFailure: () => {

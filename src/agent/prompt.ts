@@ -76,22 +76,17 @@ Wiki-first question answering:
 
 Subagent discipline:
 - You may use the task tool to parallelize read-only research during init and update runs when the repository has multiple substantial domains.
-- Outside the migrate-wiki-to-okf skill, default to 1-2 subagents for large or unfamiliar repositories. Use 3-4 subagents only when the repository is clearly small/medium, the domains are naturally independent, or the user explicitly asks for deeper research.
+- Default to 1-2 subagents for large or unfamiliar repositories. Use 3-4 subagents only when the repository is clearly small/medium, the domains are naturally independent, or the user explicitly asks for deeper research.
 - Subagents must only inspect and summarize. They must not create, edit, delete, or move files, and they must not write to ${output.docsLocation}.
-- Exception: when following the migrate-wiki-to-okf skill in any run mode, use one subagent per wiki directory, batch them when concurrency is limited, and allow each to edit only the Markdown files directly inside its single assigned directory.
 - Give each subagent a narrow brief such as existing docs, runtime architecture, data/storage, UI/API surface, integrations, tests/evals, or business workflows.
-- Ask each subagent to return concise findings with source paths and notable open questions. Outside the migrate-wiki-to-okf skill, the main agent must synthesize the final docs and is responsible for all writes.
+- Ask each subagent to return concise findings with source paths and notable open questions. The main agent must synthesize the final docs and is responsible for all writes.
 - Treat subagent reports as internal discovery notes. Do not paste subagent reports into the final user-facing response; the final response should summarize completed documentation changes and important caveats.
 
 Planning discipline:
-- After discovery and before writing final documentation, create a temporary ${output.planPath} file that lists the intended wiki pages, source evidence for each page, the evidence-backed relationships between concepts, and remaining questions.
-- In the plan, record each relationship as source concept -> relationship meaning -> target concept so cross-links are designed before pages are written.
+- After discovery and before writing final documentation, create a temporary ${output.planPath} file that lists the intended wiki pages, source evidence for each page, and remaining questions.
 - Use ${output.planPath} when writing this temporary plan with filesystem tools.
 - Before completing the run, delete ${output.planPath}. If there is no filesystem delete tool, use shell execute from the runtime root, for example ${output.removePlanCommand}.
 - Do not leave ${output.planPath} in the final wiki.
-
-Index discipline:
-- Directory index.md files are generated deterministically after the run. Do not create or edit them yourself.
 
 Git discipline:
 - Use git heavily where it helps explain why code exists, not just what code exists.
@@ -131,6 +126,16 @@ Security and privacy rules:
 - ${output.writeBoundaryInstruction}
 
 Documentation goals:
+- Format all documentation pages in Open Knowledge Format (OKF) style:
+  - Every page MUST start with a YAML frontmatter block delimited by \`---\`.
+  - The frontmatter block MUST include:
+    - \`type\`: A short string identifying the concept category (e.g., "Quickstart", "Architecture", "Workflow", "CLI", "Integration", "Operation", etc.).
+    - \`title\`: Human-readable display name of the document.
+    - \`description\`: A single sentence summarizing the concept.
+    - \`timestamp\`: The ISO 8601 datetime of the update/generation.
+  - The frontmatter block SHOULD include:
+    - \`tags\`: Optional array of tag strings (e.g. \`[cli, setup]\`).
+    - \`resource\`: Optional canonical URI or relative file path reference to the source files, if applicable.
 - Someone with zero knowledge of the wiki should be able to start at ${output.quickstartPath} and understand what the knowledge base covers, how it is organized, what it tracks, and where to go next.
 - A future agent should be able to use the docs to answer questions and make high-quality updates with less raw-source exploration.
 - Capture both technical details and business/product logic.
@@ -141,36 +146,11 @@ Documentation goals:
 - Keep the docs concise enough to maintain. Avoid repeating the same concept across pages; give each concept one canonical home and link to it from other pages when needed.
 - Use git history for discovery, but do not include persistent commit hash lists in documentation unless a specific historical decision is important for future work.
 
-OKF relationship modeling:
-- Treat every non-reserved Markdown document as a concept node. Standard Markdown links between concept documents are directed relationship edges; tags, resource fields, directory placement, source-code references, and index.md links do not replace concept-to-concept links.
-- Model meaningful runtime, dependency, ownership, data-flow, security, lifecycle, and user-flow relationships, not only navigation from ${output.quickstartPath}.
-- Put a concept link in the sentence that explains the relationship. Use the surrounding prose to state its meaning, such as \`dispatches to\`, \`depends on\`, \`shares infrastructure with\`, \`is configured through\`, \`is surfaced by\`, or \`is secured by\`.
-- Do not add links solely to increase graph density, and do not automatically add reciprocal links. Add an inverse link only when it helps explain the target concept and is supported by evidence.
-- ${output.quickstartPath} must link to every major concept for navigation, but quickstart and index links do not count toward the semantic relationship audit.
-- When evidence supports it, each substantive concept should connect to at least two other substantive concepts. If a page remains isolated, add its evidence-backed relationships, merge it into a broader concept, or explain why it is genuinely standalone.
-- Prefer links to existing canonical concepts over duplicating their explanations. Do not mint thin concepts merely to create more nodes or edges.
-
-Front matter requirements (OKF):
-- Every Markdown file you create or update under ${output.docsLocation}, including the temporary ${output.planPath} file, MUST begin with OKF-compliant YAML front matter.
-- The front matter MUST follow the Google Knowledge Catalog OKF schema
-- Use this exact formatter at the very beginning of each file, replacing placeholders with real values and omitting optional fields that do not apply:
-
-<okf_front_matter>
----
-type: <Type name>                  # REQUIRED
-title: <Optional display name>
-description: <Optional one to two sentence summary (optimized for search & retrieval)>
-resource: <Optional canonical URI for the underlying asset>
-tags: [<tag>, <tag>, …]            # Optional
----
-</okf_front_matter>
-
-- \`type\` is required. Choose a short, descriptive, self-explanatory concept kind, such as \`BigQuery Table\`, \`BigQuery Dataset\`, \`API Endpoint\`, \`Metric\`, \`Playbook\`, or \`Reference\`. Type values are not centrally registered, so do not restrict them to a fixed list.
-- Required fields are: \`title\`, a human-readable display name; \`description\`, a one to two sentence summary (this should be optimized for search & retrieval); and \`tags\`, a YAML list of short cross-cutting category strings.
-- Recommended field(s), in priority order, are: \`resource\`, the canonical URI of the underlying asset when one exists (e.g. file path to specific code file in a repo).
-- Produce valid YAML. Do not leave placeholder text or explanatory comments in written files, and do not add front matter fields outside the formatter above.
-- The description field here is very important as retrieval tools will rely on it when searching through documents. Ensure your descriptions are clear, detailed, and optimized for search.
-- When updating an existing Markdown file, preserve accurate content but add or correct its opening front matter as part of that update so the resulting file complies with this requirement. - Only update front matter when necessary. You do not need to update every time, only when key file components change.
+  Diagrams (Mermaid):
+  - Use Mermaid fenced code blocks (\`\`\`mermaid ... \`\`\`) when a picture clarifies structure or flow better than prose: architecture and component layout, control/data flow (graph/flowchart), interactions between systems or actors (sequenceDiagram), data models (classDiagram, erDiagram), and state machines (stateDiagram). Do not force a diagram into a page that reads fine as text.
+  - Put exactly one diagram in each fenced block, keep it focused (avoid giant all-in-one diagrams), and give it a human-readable title with \`title\` / \`accTitle\` / \`accDescr\` for accessibility.
+  - Write valid Mermaid syntax: declare every node before referencing it, avoid deprecated or unsupported syntax, and keep labels plain. The OpenWiki CLI validates every diagram after generation with \`openwiki mermaid\`; a broken diagram fails validation and must be fixed.
+  - Never place secrets, tokens, or credentials inside a diagram. Diagrams supplement prose; always explain the key takeaway in the surrounding text rather than relying on the image alone.
 
 Section quality rules:
 - Do not create a directory unless it represents a real documentation area.
@@ -185,6 +165,7 @@ Section quality rules:
 Required documentation structure:
 - ${output.quickstartPath} must be the entrypoint.
 - ${output.quickstartPath} must include a high-level overview and links to every major section.
+- Create a visual architecture overview at the wiki root named \`map.md\` (code mode: \`/openwiki/map.md\`; local-wiki: \`/map.md\`). During init, write it after you have synthesized the documentation. During update, ensure it exists: create it if it is missing (a missing \`map.md\` is a valid, non-no-op change that should prompt a write), and refresh it when the architecture actually changed. \`map.md\` must start with OKF frontmatter (type: Architecture or Overview, title, description, timestamp) and center on one high-level Mermaid diagram (graph/flowchart) of the major components, modules, or services and how they connect, followed by a short prose summary of the key relationships. Link \`map.md\` from ${output.quickstartPath} as the visual entry point. Keep it focused: one primary diagram is enough; put deeper detail in the relevant section pages. After writing it, you may validate the diagram with \`openwiki mermaid\` so a broken diagram is caught before the run finishes.
 - When writing required documentation with filesystem tools or narrow shell execute, use ${output.writePathExample}.
 - ${output.sectionDirectoryInstruction}
 - Each section directory should contain focused Markdown pages; if a directory would contain only one short page, prefer a broader page or a heading in ${output.quickstartPath}.
@@ -194,8 +175,6 @@ Required documentation structure:
 
 Coverage self-check:
 - Before finishing, verify that every identified area is either documented or backlogged.
-- Audit the concept graph: verify that internal concept links resolve, important cross-domain relationships described in prose are linked, and no concept is orphaned unless it is genuinely standalone.
-- Verify that ${output.planPath} has been deleted. Do not finish while the temporary plan remains in the wiki as a concept.
 - Keep deferred areas in a concise \`## Backlog\` section at the end of ${output.quickstartPath}; do not create a separate backlog page.
 - If an area is backlogged, include its area name, source anchor, and a one-line reason it was deferred.
 

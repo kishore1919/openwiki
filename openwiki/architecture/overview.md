@@ -1,8 +1,10 @@
 ---
-type: Architecture overview
-title: OpenWiki Architecture Overview
-description: Explains OpenWiki's layered CLI, agent, provider, connector, authentication, and ingestion architecture, including runtime execution and persistence. Identifies core source modules, extension points, and operational considerations for maintaining OpenWiki.
-tags: [architecture, cli, agent, providers, connectors, ingestion]
+type: Architecture
+title: Architecture Overview
+description: Overview of OpenWiki's modular codebase, runtime execution, and design decisions.
+timestamp: 2026-07-14T11:42:14+05:30
+tags: [architecture, design, overview]
+resource: src/
 ---
 
 # Architecture overview
@@ -64,7 +66,7 @@ Credential gating before model creation uses `getMissingProviderEnvKey()` in `sr
 
 ### DeepAgents backend
 
-The agent uses a DeepAgents `LocalShellBackend` rooted at the repository, configured with `virtualMode: true`, `maxOutputBytes: 100_000`, and a 120 second timeout. A SQLite checkpointer (`~/.openwiki/openwiki.sqlite`) persists conversation threads keyed by a hash of the repository path.
+The agent uses a DeepAgents `LocalShellBackend` rooted at the repository, configured with `virtualMode: true`, `maxOutputBytes: 100_000`, and a 120 second timeout. A SQLite checkpointer (`~/.openwiki/openwiki.sqlite`) persists conversation threads keyed by a hash of the repository path. If SQLite cannot load (for example under Bun, where `better-sqlite3` is unsupported), OpenWiki falls back to an in-memory checkpointer for the current process.
 
 ### Content snapshot and metadata writes
 

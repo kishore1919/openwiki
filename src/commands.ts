@@ -52,6 +52,11 @@ export type CliCommand =
       exitCode: 0;
       target: CronTarget | null;
     }
+  | {
+      kind: "mermaid";
+      exitCode: 0;
+      paths: string[];
+    }
   | { kind: "help"; exitCode: 0 }
   | {
       kind: "run";
@@ -77,6 +82,14 @@ export type OpenWikiRunModeSource = "default" | "option" | "positional";
 export function parseCommand(argv: string[]): CliCommand {
   if (argv[0] === "--help" || argv[0] === "-h") {
     return { kind: "help", exitCode: 0 };
+  }
+
+  if (argv[0] === "mermaid") {
+    return {
+      kind: "mermaid",
+      exitCode: 0,
+      paths: argv.slice(1),
+    };
   }
 
   if (argv[0] === "auth") {
@@ -646,6 +659,7 @@ export const helpContent: HelpContent = {
     "openwiki cron resume <source|all>",
     "openwiki cron delete <source|all>",
     "openwiki ngrok start [url] [--port <port>]",
+    "openwiki mermaid [path...]",
   ],
   commands: [
     {
@@ -705,6 +719,11 @@ export const helpContent: HelpContent = {
       label: "openwiki ngrok start [url]",
       description:
         "Start an ngrok tunnel for Slack OAuth, optionally using a fixed HTTPS URL.",
+    },
+    {
+      label: "openwiki mermaid [path...]",
+      description:
+        "Validate Mermaid diagrams in wiki Markdown. Defaults to the repository openwiki/ dir and the local personal wiki.",
     },
   ],
   options: [
@@ -768,6 +787,8 @@ export const helpContent: HelpContent = {
     "openwiki auth tools notion",
     "openwiki ngrok start",
     "openwiki ngrok start https://openwiki.ngrok.app",
+    "openwiki mermaid",
+    "openwiki mermaid openwiki/architecture",
   ],
   developmentExamples: ["openwiki --dry-run"],
 };

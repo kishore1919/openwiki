@@ -31,6 +31,9 @@ export const DEFAULT_VERTEX_LOCATION = "global";
 export const OPENWIKI_PROVIDER_ENV_KEY = "OPENWIKI_PROVIDER";
 export const OPENWIKI_MODEL_ID_ENV_KEY = "OPENWIKI_MODEL_ID";
 export const NEBIUS_BASE_URL = "https://api.tokenfactory.nebius.com/v1/";
+export const OLLAMA_BASE_URL = "https://ollama.com/v1";
+export const OLLAMA_BASE_URL_ENV_KEY = "OLLAMA_BASE_URL";
+export const OLLAMA_API_KEY_ENV_KEY = "OLLAMA_API_KEY";
 export const OPENWIKI_PROVIDER_RETRY_ATTEMPTS_ENV_KEY =
   "OPENWIKI_PROVIDER_RETRY_ATTEMPTS";
 export const DEFAULT_PROVIDER_RETRY_ATTEMPTS = 3;
@@ -74,6 +77,7 @@ export type OpenWikiProvider =
   | "gemini-enterprise"
   | "nebius"
   | "nvidia"
+  | "ollama"
   | "openai"
   | "openai-chatgpt"
   | "openai-compatible"
@@ -187,6 +191,7 @@ export const SELECTABLE_OPENWIKI_PROVIDERS = [
   "baseten",
   "nebius",
   "nvidia",
+  "ollama",
 ] as const satisfies readonly SelectableOpenWikiProvider[];
 
 export const PROVIDER_CONFIGS: Record<OpenWikiProvider, ProviderConfig> = {
@@ -228,6 +233,13 @@ export const PROVIDER_CONFIGS: Record<OpenWikiProvider, ProviderConfig> = {
     baseURL: NEBIUS_BASE_URL,
     label: "Nebius Token Factory",
     modelOptions: [{ id: "moonshotai/Kimi-K2.6", label: "Kimi K2.6" }],
+  },
+  ollama: {
+    apiKeyEnvKey: OLLAMA_API_KEY_ENV_KEY,
+    baseURL: OLLAMA_BASE_URL,
+    baseUrlEnvKey: OLLAMA_BASE_URL_ENV_KEY,
+    label: "Ollama Cloud",
+    modelOptions: [{ id: "gemma4:31b-cloud", label: "Gemma 4 31B Cloud" }],
   },
   nvidia: {
     apiKeyEnvKey: NVIDIA_API_KEY_ENV_KEY,
@@ -555,11 +567,13 @@ export function resolveConfiguredProvider(
                 ? "fireworks"
                 : env[NEBIUS_API_KEY_ENV_KEY]
                   ? "nebius"
-                  : env[NVIDIA_API_KEY_ENV_KEY]
-                    ? "nvidia"
-                    : env[BEDROCK_AWS_ACCESS_KEY_ID_ENV_KEY]
-                      ? "bedrock"
-                      : DEFAULT_PROVIDER)
+              : env[NVIDIA_API_KEY_ENV_KEY]
+                ? "nvidia"
+                : env[OLLAMA_API_KEY_ENV_KEY]
+                  ? "ollama"
+                  : env[BEDROCK_AWS_ACCESS_KEY_ID_ENV_KEY]
+                    ? "bedrock"
+                    : DEFAULT_PROVIDER)
   );
 }
 

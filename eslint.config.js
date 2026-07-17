@@ -10,7 +10,7 @@ export default tseslint.config(
       "dist/**",
       "node_modules/**",
       "*.tgz",
-      "pnpm-lock.yaml",
+      "bun.lock",
     ],
   },
   js.configs.recommended,

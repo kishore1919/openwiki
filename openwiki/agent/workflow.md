@@ -1,8 +1,10 @@
 ---
-type: Technical documentation
-title: Agent workflow
-description: Explains the OpenWiki documentation agent's command flow, provider and model setup, prompting rules, and update metadata behavior. Documents the agent's Git-grounded workflow, content snapshot safeguards, and source implementation map for maintaining agent behavior.
-tags: [agent, workflow, documentation, providers, update-metadata]
+type: Workflow
+title: Agent Workflow
+description: Analysis of how the OpenWiki documentation agent constructs runs, handles evidence, and persists metadata.
+timestamp: 2026-07-14T11:42:14+05:30
+tags: [agent, workflow, runtime]
+resource: src/agent/
 ---
 
 # Agent workflow

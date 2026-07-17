@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-17T08:46:18.705Z",
+  "updatedAt": "2026-07-15T18:31:40.688Z",
   "command": "update",
-  "gitHead": "d4e94ab513ab13908c6b61346b23dc17bbd59b1f",
-  "model": "z-ai/glm-5.2"
+  "gitHead": "96a537b83119a6da2124f5c946c6b8c02d0d8266",
+  "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
 }

@@ -11,7 +11,6 @@ import { startNgrokTunnel } from "./auth/ngrok.js";
 import { formatAuthProviderList, runOAuthAuth } from "./auth/oauth.js";
 import { ensureCodeModeRepoSetup } from "./code-mode.js";
 import {
-  commandEmitsTelemetry,
   helpContent,
   isDevelopmentMode,
   parseCommand,
@@ -52,6 +51,7 @@ import {
   readOpenWikiOnboardingConfig,
   saveOpenWikiOnboardingConfig,
 } from "./onboarding.js";
+import { runMermaidValidation } from "./mermaid/cli.js";
 import { openWikiLocalWikiDir } from "./openwiki-home.js";
 import {
   deleteConnectorSchedules,
@@ -82,12 +82,6 @@ import {
   type OpenWikiProvider,
 } from "./constants.js";
 import type { OpenWikiCommand, OpenWikiOutputMode } from "./agent/types.js";
-import {
-  firstRunNoticePending,
-  FIRST_RUN_NOTICE_BODY,
-  FIRST_RUN_NOTICE_OPT_OUT,
-  FIRST_RUN_NOTICE_VERIFY,
-} from "./telemetry/index.js";
 
 type RunState =
   | { status: "idle" }
@@ -167,85 +161,6 @@ const OPENWIKI_LOGO_LINES = [
 const OPENWIKI_LOGO_WIDTH = Math.max(
   ...OPENWIKI_LOGO_LINES.map((line) => line.length),
 );
-
-/** Frame/wrap width for the plain-text (print/non-TTY) first-run disclosure. */
-const FIRST_RUN_NOTICE_WIDTH = 64;
-
-/** Greedy word-wrap to `width` columns. Input carries no existing newlines. */
-function wrapText(text: string, width: number): string[] {
-  const lines: string[] = [];
-  let line = "";
-
-  for (const word of text.split(/\s+/)) {
-    if (line.length === 0) {
-      line = word;
-    } else if (line.length + 1 + word.length <= width) {
-      line += ` ${word}`;
-    } else {
-      lines.push(line);
-      line = word;
-    }
-  }
-  if (line.length > 0) {
-    lines.push(line);
-  }
-
-  return lines;
-}
-
-/**
- * The plain-text first-run disclosure for print/non-TTY output: the same copy as
- * the interactive box (single-sourced in telemetry/config.ts), framed with light
- * rules and wrapped to a fixed width. Rendered gray when stderr is a TTY, plain
- * when redirected so a captured log stays free of escape codes.
- */
-function renderFirstRunNoticeText(color: boolean): string {
-  const label = "OpenWiki telemetry";
-  const width = FIRST_RUN_NOTICE_WIDTH;
-  const topRule = `─── ${label} ${"─".repeat(Math.max(3, width - label.length - 5))}`;
-  const block = [
-    "",
-    topRule,
-    "",
-    ...wrapText(FIRST_RUN_NOTICE_BODY, width),
-    "",
-    ...wrapText(FIRST_RUN_NOTICE_OPT_OUT, width),
-    "",
-    ...wrapText(FIRST_RUN_NOTICE_VERIFY, width),
-    "─".repeat(width),
-    "",
-  ].join("\n");
-
-  return color ? `\u001b[90m${block}\u001b[39m` : block;
-}
-
-/**
- * The one-time telemetry disclosure, rendered as a box so it sits inline with
- * the rest of the TUI (mirrors SetupHeader's rounded style). The copy is
- * single-sourced in telemetry/config.ts; the print/non-TTY path renders the
- * same wording as plain text via renderFirstRunNoticeText.
- */
-function FirstRunNotice() {
-  return (
-    <Box
-      borderStyle="round"
-      borderColor="cyan"
-      flexDirection="column"
-      marginBottom={1}
-      paddingX={1}
-    >
-      <Text>
-        <Text bold color="cyan">
-          OpenWiki
-        </Text>{" "}
-        <Text color="gray">telemetry</Text>
-      </Text>
-      <Text color="white">{FIRST_RUN_NOTICE_BODY}</Text>
-      <Text color="white">{FIRST_RUN_NOTICE_OPT_OUT}</Text>
-      <Text color="white">{FIRST_RUN_NOTICE_VERIFY}</Text>
-    </Box>
-  );
-}
 
 function App({ command }: AppProps) {
   const app = useApp();
@@ -557,7 +472,6 @@ function App({ command }: AppProps) {
           outputMode: runtimeOutputMode,
           threadId: sessionThreadId.current,
           userMessage: activeUserMessage,
-          telemetryFile: command.telemetryFile ?? undefined,
           onEvent: (event) => {
             if (!mountedRef.current || activeRunId.current !== runId) {
               return;
@@ -3568,15 +3482,9 @@ const command = await resolveStartupCommand(parsedCommand, {
   isStdinTTY: Boolean(process.stdin.isTTY),
 });
 
-// Decide once, before any event is sent, whether this is the first run on this
-// machine (mints the install id). False when suppressed (opt-out or CI) or after
-// the first run. How it is shown depends on the render path below.
-let showFirstRunNotice = false;
-if (commandEmitsTelemetry(command)) {
-  showFirstRunNotice = await firstRunNoticePending();
-}
-
-if (command.kind === "auth") {
+if (command.kind === "mermaid") {
+  process.exitCode = await runMermaidValidation(command.paths);
+} else if (command.kind === "auth") {
   await runAuthCommand(command);
 } else if (command.kind === "ngrok") {
   await runNgrokCommand(command);
@@ -3588,21 +3496,9 @@ if (command.kind === "auth") {
   process.stderr.write(`${command.message}\n`);
   process.exitCode = command.exitCode;
 } else if (shouldRunNonInteractively(command, process.stdin.isTTY === true)) {
-  // Non-TTY / print mode: framed text on stderr so piped stdout stays clean;
-  // gray only when stderr is a real terminal.
-  if (showFirstRunNotice) {
-    console.error(renderFirstRunNoticeText(process.stderr.isTTY === true));
-  }
   await runPrintCommand(command);
 } else {
-  // Interactive TUI: render the notice as a box above the app so it matches
-  // the rest of the interface.
-  render(
-    <>
-      {showFirstRunNotice ? <FirstRunNotice /> : null}
-      <App command={command} />
-    </>,
-  );
+  render(<App command={command} />);
 }
 
 async function runNgrokCommand(
@@ -3837,11 +3733,11 @@ async function runIngestCommand(
       );
     }
 
-    const hadError = result.results.some(
+    process.exitCode = result.results.some(
       (sourceResult) => sourceResult.status === "error",
-    );
-
-    process.exitCode = hadError ? 1 : 0;
+    )
+      ? 1
+      : 0;
   } catch (error) {
     process.stderr.write(`${getErrorMessage(error)}\n`);
     writePrintErrorDiagnostics(error);
@@ -3855,64 +3751,71 @@ async function runAuthCommand(
   try {
     if (command.action === "list") {
       process.stdout.write(`${formatAuthProviderList()}\n`);
-    } else {
-      if (command.provider === null) {
-        throw new Error("Auth provider is required.");
-      }
-
-      if (command.action === "configure") {
-        const result = await configureAuthProvider(command.provider, {
-          force: command.force,
-        });
-        process.stdout.write(
-          `${result.status === "exists" ? "Config already exists" : `Config ${result.status}`}: ${result.configPath}\n`,
-        );
-        for (const nextStep of result.nextSteps) {
-          process.stdout.write(`- ${nextStep}\n`);
-        }
-      } else if (command.action === "tools") {
-        const result = await listAuthProviderTools(command.provider);
-        process.stdout.write(
-          `Tools for ${result.provider} (${result.configPath})\n`,
-        );
-        process.stdout.write(`Wrote discovery: ${result.rawFile}\n`);
-        process.stdout.write(`${JSON.stringify(result.tools, null, 2)}\n`);
-      } else {
-        const result = await runOAuthAuth(command.provider);
-        process.stdout.write(
-          `Saved ${result.provider} auth values: ${result.savedEnvKeys.join(", ")}\n`,
-        );
-        const configureResult = await configureAuthProvider(command.provider, {
-          force: command.force,
-        });
-        process.stdout.write(
-          `${configureResult.status === "exists" ? "Config already exists" : `Config ${configureResult.status}`}: ${configureResult.configPath}\n`,
-        );
-        for (const nextStep of configureResult.nextSteps) {
-          process.stdout.write(`- ${nextStep}\n`);
-        }
-
-        if (shouldDiscoverToolsAfterAuth(command.provider)) {
-          try {
-            const toolsResult = await listAuthProviderTools(command.provider);
-            process.stdout.write(
-              `Discovered ${toolsResult.tools.length} MCP tool(s); wrote ${toolsResult.rawFile}\n`,
-            );
-            const toolNames = toolsResult.tools
-              .map((tool) => tool.name)
-              .slice(0, 20);
-            if (toolNames.length > 0) {
-              process.stdout.write(`Tools: ${toolNames.join(", ")}\n`);
-            }
-          } catch (error) {
-            process.stdout.write(
-              `MCP tool discovery skipped: ${getErrorMessage(error)}\n`,
-            );
-          }
-        }
-      }
+      process.exitCode = 0;
+      return;
     }
 
+    if (command.provider === null) {
+      throw new Error("Auth provider is required.");
+    }
+
+    if (command.action === "configure") {
+      const result = await configureAuthProvider(command.provider, {
+        force: command.force,
+      });
+      process.stdout.write(
+        `${result.status === "exists" ? "Config already exists" : `Config ${result.status}`}: ${result.configPath}\n`,
+      );
+      for (const nextStep of result.nextSteps) {
+        process.stdout.write(`- ${nextStep}\n`);
+      }
+      process.exitCode = 0;
+      return;
+    }
+
+    if (command.action === "tools") {
+      const result = await listAuthProviderTools(command.provider);
+      process.stdout.write(
+        `Tools for ${result.provider} (${result.configPath})\n`,
+      );
+      process.stdout.write(`Wrote discovery: ${result.rawFile}\n`);
+      process.stdout.write(`${JSON.stringify(result.tools, null, 2)}\n`);
+      process.exitCode = 0;
+      return;
+    }
+
+    const result = await runOAuthAuth(command.provider);
+    process.stdout.write(
+      `Saved ${result.provider} auth values: ${result.savedEnvKeys.join(", ")}\n`,
+    );
+    const configureResult = await configureAuthProvider(command.provider, {
+      force: command.force,
+    });
+    process.stdout.write(
+      `${configureResult.status === "exists" ? "Config already exists" : `Config ${configureResult.status}`}: ${configureResult.configPath}\n`,
+    );
+    for (const nextStep of configureResult.nextSteps) {
+      process.stdout.write(`- ${nextStep}\n`);
+    }
+
+    if (shouldDiscoverToolsAfterAuth(command.provider)) {
+      try {
+        const toolsResult = await listAuthProviderTools(command.provider);
+        process.stdout.write(
+          `Discovered ${toolsResult.tools.length} MCP tool(s); wrote ${toolsResult.rawFile}\n`,
+        );
+        const toolNames = toolsResult.tools
+          .map((tool) => tool.name)
+          .slice(0, 20);
+        if (toolNames.length > 0) {
+          process.stdout.write(`Tools: ${toolNames.join(", ")}\n`);
+        }
+      } catch (error) {
+        process.stdout.write(
+          `MCP tool discovery skipped: ${getErrorMessage(error)}\n`,
+        );
+      }
+    }
     process.exitCode = 0;
   } catch (error) {
     process.stderr.write(`${getErrorMessage(error)}\n`);
@@ -3958,10 +3861,6 @@ function shouldAutoExitStartupRun(command: CliCommand): boolean {
   );
 }
 
-/**
- * Builds the telemetry context for a run from the parsed command. Flag names
- * only, never argument values.
- */
 async function runPrintCommand(
   command: Extract<CliCommand, { kind: "run" }>,
 ): Promise<void> {
@@ -3982,7 +3881,6 @@ async function runPrintCommand(
       outputMode: runtimeOutputMode,
       threadId: createOpenWikiThreadId(runtimeCwd),
       userMessage: command.userMessage,
-      telemetryFile: command.telemetryFile ?? undefined,
       onEvent: (event) => {
         if (event.type === "text" && event.source !== "subgraph") {
           output.push(event.text);

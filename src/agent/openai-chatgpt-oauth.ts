@@ -49,7 +49,7 @@ export function createCodexFetch(
   modelId: string,
   fetchImpl: typeof fetch = globalThis.fetch,
 ): typeof fetch {
-  return async (input, init) => {
+  return (async (input, init) => {
     const useLunaProtocol =
       modelId === CODEX_LUNA_MODEL_ID && isCodexResponsesRequest(input);
 
@@ -130,7 +130,7 @@ export function createCodexFetch(
     }
 
     return fetchImpl(input, init);
-  };
+  }) as typeof fetch;
 }
 
 /**
