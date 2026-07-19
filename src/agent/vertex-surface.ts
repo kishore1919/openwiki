@@ -154,7 +154,7 @@ export function createVertexAuthFetch(
 ): typeof fetch {
   const auth = getGoogleAuth();
 
-  return async (input, init) => {
+  const wrappedFetch = async (input: RequestInfo, init?: RequestInit) => {
     const token = await auth.getAccessToken();
 
     if (!token) {
@@ -168,4 +168,6 @@ export function createVertexAuthFetch(
 
     return baseFetch(input, { ...init, headers });
   };
+
+  return Object.assign(wrappedFetch, baseFetch);
 }

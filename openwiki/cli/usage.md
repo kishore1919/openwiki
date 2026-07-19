@@ -46,7 +46,7 @@ When explicit init (`openwiki personal --init` or `openwiki code --init`) or `--
 
 ### Non-interactive mode
 
-If stdin is not a TTY (e.g. CI), or `--print` is used, the CLI requires the provider's credentials to be already saved in `~/.openwiki/.env` or present in the environment — the provider API key, or `GOOGLE_CLOUD_PROJECT` for the vertex provider. It will error with a clear message if the value is missing, rather than prompting interactively.
+If stdin is not a TTY (e.g. CI), or `--print` is used, the CLI requires the provider's credentials to be already saved in `~/.openwiki/.env` or present in the environment — the provider API key, or `GOOGLE_CLOUD_PROJECT` for the gemini-enterprise provider. It will error with a clear message if the value is missing, rather than prompting interactively.
 
 ## Interactive behavior
 
@@ -66,8 +66,8 @@ The UI persists provider and model selection back to `~/.openwiki/.env` through 
 
 The first interactive run can prompt for:
 
-- a **provider** (`OPENWIKI_PROVIDER`) — openai, openai-chatgpt, openrouter, baseten, fireworks, nvidia, openai-compatible, anthropic, or vertex,
-- the **provider API key** (e.g. `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `OPENAI_COMPATIBLE_API_KEY`, `ANTHROPIC_API_KEY`, `BASETEN_API_KEY`, `FIREWORKS_API_KEY`) — skipped for the vertex provider, which instead prompts for a **GCP project** (`GOOGLE_CLOUD_PROJECT`, required) and a **GCP location** (`GOOGLE_CLOUD_LOCATION`, optional, defaults to `global`),
+- a **provider** (`OPENWIKI_PROVIDER`) — openai, openai-chatgpt, openrouter, baseten, fireworks, nvidia, openai-compatible, anthropic, or gemini-enterprise,
+- the **provider API key** (e.g. `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `OPENAI_COMPATIBLE_API_KEY`, `ANTHROPIC_API_KEY`, `BASETEN_API_KEY`, `FIREWORKS_API_KEY`) — skipped for the gemini-enterprise provider, which instead prompts for a **GCP project** (`GOOGLE_CLOUD_PROJECT`, required) and a **GCP location** (`GOOGLE_CLOUD_LOCATION`, optional, defaults to `global`),
 - a **base URL** for providers that require one (the openai-compatible provider prompts for `OPENAI_COMPATIBLE_BASE_URL`),
 - a **model ID** stored as `OPENWIKI_MODEL_ID` — chosen from the provider's model list or a custom ID,
 - optional `LANGSMITH_API_KEY` for tracing.
@@ -90,7 +90,7 @@ Providers and their model options are defined in `PROVIDER_CONFIGS` in `src/cons
 | nvidia            | `NVIDIA_API_KEY`                                    | `https://integrate.api.nvidia.com/v1`          | Nemotron 3 Super/Ultra/Nano, DeepSeek V4 Pro, GPT-OSS 120B, Kimi K2.6 |
 | openai-compatible | `OPENAI_COMPATIBLE_API_KEY`                         | `OPENAI_COMPATIBLE_BASE_URL` (required)        | custom model ID only                                                  |
 | anthropic         | `ANTHROPIC_API_KEY`                                 | (default, or `ANTHROPIC_BASE_URL`)             | Haiku, Sonnet, Opus                                                   |
-| vertex            | none (Google ADC) — `GOOGLE_CLOUD_PROJECT` required | per `GOOGLE_CLOUD_LOCATION` (default `global`) | Haiku, Sonnet, Opus (Claude on Vertex AI)                             |
+| gemini-enterprise | none (Google ADC) — `GOOGLE_CLOUD_PROJECT` required | per `GOOGLE_CLOUD_LOCATION` (default `global`) | Gemini models + curated Claude Model Garden IDs                       |
 
 The default provider is `openai`, and the default model is `gpt-5.6-terra`. `resolveConfiguredProvider()` picks the provider from `OPENWIKI_PROVIDER`, then falls back to the first configured provider API key in this order: OpenAI, OpenAI-compatible, OpenRouter, Anthropic, Baseten, Fireworks, NVIDIA, and finally `DEFAULT_PROVIDER`.
 
@@ -135,7 +135,7 @@ OPENWIKI_MODEL_ID=<model name the gateway exposes>
 Base URLs are resolved by `resolveProviderBaseUrl()` in `src/constants.ts`, which
 prefers a provider's `baseUrlEnvKey` override over the built-in default.
 
-### Google Vertex AI (Claude) provider
+### Gemini Enterprise (Vertex AI) provider
 
 The `vertex` provider runs Claude models through Google Vertex AI using the
 existing `ChatAnthropic` class with a custom `AnthropicVertex` client
@@ -147,13 +147,13 @@ workload identity). `GOOGLE_CLOUD_PROJECT` is required;
 `resolveProviderLocation()` in `src/constants.ts`).
 
 ```bash
-OPENWIKI_PROVIDER=vertex
+OPENWIKI_PROVIDER=gemini-enterprise
 GOOGLE_CLOUD_PROJECT=<gcp project id>
 GOOGLE_CLOUD_LOCATION=global   # optional
 ```
 
-Vertex Claude model IDs may carry an `@`-versioned suffix (for example
-`claude-haiku-4-5@20251001`), which the model-ID validator accepts.
+Gemini Enterprise model IDs may carry an `@`-versioned suffix (for example
+`claude-sonnet-4-5@20250929`), which the model-ID validator accepts.
 
 ## Help text and validation
 

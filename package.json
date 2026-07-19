@@ -48,6 +48,7 @@
     "@langchain/aws": "^1.4.2",
     "@langchain/core": "^1.2.1",
     "@langchain/google": "^0.2.1",
+    "@langchain/langgraph-checkpoint": "^1.1.2",
     "@langchain/langgraph-checkpoint-sqlite": "^1.0.3",
     "@langchain/openai": "^1.5.5",
     "@langchain/openrouter": "^0.4.3",
@@ -61,7 +62,8 @@
     "ink": "^5.1.0",
     "langchain": "^1.5.3",
     "marked": "^18.0.5",
-    "posthog-node": "^5.39.4",
+    "mermaid": "^11.16.0",
+    "posthog-node": "^5.45.2",
     "react": "^18.3.1",
     "yaml": "^2.9.0",
     "zod": "^4.4.3"
