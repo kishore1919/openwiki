@@ -1,68 +1,44 @@
 ---
 name: mermaid-diagrams
-description: Author and validate Mermaid diagrams inside OpenWiki documentation. Use when a documentation page needs an architecture, flow, sequence, ER, class, or state diagram.
+description: Embed Mermaid diagrams in generated wiki pages. Use whenever documenting a runtime or request flow, a call sequence, a state machine or lifecycle, a data model or entity relationships, or non-trivial control flow, since these are clearer as a diagram than as prose. Also use when an update run touches a page that already contains a mermaid fence, or a page that contains a text fence a previous run degraded.
 ---
 
-# Mermaid Diagrams in OpenWiki
+# Mermaid Diagrams In Generated Wiki Pages
 
-OpenWiki documentation is Markdown rendered for both humans and future agents. Mermaid diagrams make architecture, data flow, and interactions scannable. Use them when a picture clarifies structure better than prose.
+Diagrams are part of high-quality wiki generation, not decoration. Where a flow,
+lifecycle, or data model is easier to grasp visually, embed a Mermaid diagram in
+a fenced ```mermaid block on the most relevant page.
 
-## When To Use A Diagram
+## Choosing a diagram type
 
-- **Architecture / component layout** — how services, modules, or repos fit together.
-- **Control or data flow** — `graph` / `flowchart` for pipelines, request paths, build steps.
-- **Interactions** — `sequenceDiagram` for multi-actor or multi-service call flows.
-- **Data models** — `classDiagram` or `erDiagram` for entities and relationships.
-- **State machines** — `stateDiagram` for lifecycle or status transitions.
+- `sequenceDiagram` for runtime and request flows across components (auth flows, request lifecycles, agent tool loops).
+- `stateDiagram-v2` for lifecycles and state machines (job states, connection states, run phases).
+- `erDiagram` for the data model: entities and their relationships.
+- `flowchart TD` for branching control flow and decision logic.
 
-Do not force a diagram where a short paragraph is clearer, and never put secrets, tokens, or credentials in a diagram.
+## Discipline
 
-## Required Shape
+- Ground every diagram in inspected source. Do not invent participants, states, entities, or relationships the code does not support.
+- Cover the high-value cases: add a diagram wherever a page documents a request or runtime flow, a call sequence, a lifecycle or state machine, or a data model. A repository wiki usually has several such diagrams, not one overall. Skip pages that are navigation, reference tables, or pure configuration.
+- Still prefer a few strong diagrams over decorating every page: one accurate diagram on the page that needs it beats a diagram forced onto every page.
+- Give each diagram a one-line caption directly below it stating what it shows.
+- OpenWiki validates every mermaid fence after your run and converts fences that fail to parse into plain text fences. A degraded diagram is a quality failure; follow the syntax rules below so it does not happen.
 
-- OpenWiki maintains a top-level architecture overview at the wiki root named `map.md` (code mode: `openwiki/map.md`, local-wiki: `~/.openwiki/wiki/map.md`). It is generated during init and refreshed during update when the architecture changes. Keep its diagram high-level (one primary graph/flowchart of the major components and their connections) and in sync with the actual structure; do not crowd it with low-level detail.
-- Use exactly one fenced block per diagram with the `mermaid` info string:
+## Syntax safety
 
-  ````markdown
-  ```mermaid
-  graph TD
-    A[Source] --> B[Agent]
-    B --> C[Wiki]
-  ```
-  ````
+These rules prevent the most common render breakages. When in doubt, rephrase the label.
 
-- Keep each diagram focused. Prefer several small diagrams over one giant all-in-one diagram.
-- Always add a human-readable title for accessibility:
+- Never place semicolons or pipes inside node, message, or edge labels.
+- Never place unescaped angle brackets in labels; write "returns Promise of User" instead of "returns Promise<User>".
+- In `flowchart`, wrap any label containing parentheses, brackets, or other punctuation in double quotes: `A["calls foo(bar)"]`.
+- In `flowchart`, never use the bare word `end` as a node id, and never start a node id with `o` or `x` followed by a dash (both are edge-marker syntax); rename the node.
+- In `sequenceDiagram`, participant names with spaces or punctuation need an alias: `participant AS as Auth Service`.
+- Never use a Mermaid reserved word as a participant name, alias, or node id: `note`, `end`, `loop`, `alt`, `opt`, `par`, `and`, `else`, `activate`, `deactivate`, `class`, `state`, `click`, `link`. For example a notification participant must be `Notifier`, not `Note` (which collides with the `note` keyword).
+- In `erDiagram`, entity and attribute names must be single identifier-like tokens; put human phrasing in the relationship label.
+- Keep labels short. Move explanation into the surrounding prose or the caption, not the diagram.
 
-  ````markdown
-  ```mermaid
-  flowchart LR
-    title Onboarding flow
-    U[User] --> L[Login]
-    L --> W[Wiki]
-  ```
-  ````
+## Update runs
 
-- Explain the key takeaway in the surrounding prose. The diagram supplements, it does not replace, the explanation.
-
-## Syntax Rules
-
-- Declare every node before referencing it.
-- Keep labels plain; avoid characters that break Mermaid parsing.
-- Use supported diagram types only (graph, flowchart, sequenceDiagram, classDiagram, erDiagram, stateDiagram, gantt, pie, mindmap, timeline, gitGraph, and similar stable types). Avoid deprecated or experimental syntax.
-- Prefer `graph`/`flowchart` for flows, `sequenceDiagram` for interactions, and `erDiagram`/`classDiagram` for data models.
-
-## Validation
-
-OpenWiki validates every Mermaid block after generation. A broken diagram fails the run and must be fixed.
-
-- Validate one or more files or directories:
-
-  ```bash
-  openwiki mermaid openwiki/architecture
-  openwiki mermaid path/to/page.md
-  ```
-
-- With no arguments it scans the repository `openwiki/` directory and the local personal wiki (`~/.openwiki/wiki`).
-- The command exits non-zero when any diagram is invalid, printing the file and the 1-based line of the offending fence.
-
-If a diagram fails validation, fix the Mermaid source (usually an undeclared node, a typo in the diagram type, or unsupported syntax) and re-run `openwiki mermaid` until it passes.
+- A wrong diagram is a stale claim, not existing structure to preserve. If a source change makes a diagram inaccurate, update the diagram in the same edit as the surrounding prose.
+- Do not rewrite a diagram that is still accurate. Regenerating unchanged diagrams creates diff noise.
+- If a page contains a text fence preceded by an HTML comment starting with "openwiki: mermaid parse failed", that is a diagram a previous run degraded. Fix the syntax using the parser error in the comment, restore the ```mermaid fence, and delete the comment.
