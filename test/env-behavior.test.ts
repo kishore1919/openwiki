@@ -12,6 +12,9 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
   ANTHROPIC_API_KEY_ENV_KEY,
   ANTHROPIC_BASE_URL_ENV_KEY,
+  BASETEN_BASE_URL_ENV_KEY,
+  FIREWORKS_BASE_URL_ENV_KEY,
+  NVIDIA_BASE_URL_ENV_KEY,
   OPENAI_COMPATIBLE_BASE_URL_ENV_KEY,
   OPENAI_API_KEY_ENV_KEY,
   OPENROUTER_API_KEY_ENV_KEY,
@@ -43,6 +46,9 @@ type EnvModule = typeof import("../src/env.ts");
 const KEYS_UNDER_TEST = [
   ANTHROPIC_API_KEY_ENV_KEY,
   ANTHROPIC_BASE_URL_ENV_KEY,
+  BASETEN_BASE_URL_ENV_KEY,
+  FIREWORKS_BASE_URL_ENV_KEY,
+  NVIDIA_BASE_URL_ENV_KEY,
   OPENAI_COMPATIBLE_BASE_URL_ENV_KEY,
   OPENAI_API_KEY_ENV_KEY,
   OPENROUTER_API_KEY_ENV_KEY,
@@ -276,6 +282,9 @@ describe("getCredentialDiagnostics", () => {
     expect(keys[0]).toBe(OPENWIKI_PROVIDER_ENV_KEY);
     expect(keys).toContain(OPENAI_API_KEY_ENV_KEY);
     expect(keys).toContain(ANTHROPIC_API_KEY_ENV_KEY);
+    expect(keys).toContain(BASETEN_BASE_URL_ENV_KEY);
+    expect(keys).toContain(FIREWORKS_BASE_URL_ENV_KEY);
+    expect(keys).toContain(NVIDIA_BASE_URL_ENV_KEY);
     expect(keys).toContain(OPENROUTER_API_KEY_ENV_KEY);
     // Keys are unique.
     expect(new Set(keys).size).toBe(keys.length);
@@ -307,17 +316,26 @@ describe("getCredentialDiagnostics", () => {
     expect(entry?.length).toBe("sk-secret-12345".length);
   });
 
-  test("surfaces a non-secret base URL verbatim, not masked", async () => {
+  test("surfaces non-secret base URLs verbatim, not masked", async () => {
     await env.saveOpenWikiEnv({
       [ANTHROPIC_BASE_URL_ENV_KEY]: "https://gateway.example.com/anthropic",
+      [BASETEN_BASE_URL_ENV_KEY]: "https://gateway.example.com/baseten/v1",
     });
 
     const diagnostics = await env.getCredentialDiagnostics();
-    const entry = diagnostics.find(
+    const anthropicEntry = diagnostics.find(
       (item) => item.key === ANTHROPIC_BASE_URL_ENV_KEY,
     );
+    const basetenEntry = diagnostics.find(
+      (item) => item.key === BASETEN_BASE_URL_ENV_KEY,
+    );
 
-    expect(entry?.preview).toBe('"https://gateway.example.com/anthropic"');
+    expect(anthropicEntry?.preview).toBe(
+      '"https://gateway.example.com/anthropic"',
+    );
+    expect(basetenEntry?.preview).toBe(
+      '"https://gateway.example.com/baseten/v1"',
+    );
   });
 
   test("flags an invalid model ID with a warning", async () => {
